@@ -13,7 +13,6 @@ import (
 
 var Module = fx.Options(
 	fx.Provide(NewGinRouter, NewHttpServer, LoadConfig),
-	fx.Invoke(func(r *http.Server) {}),
 )
 
 func NewGinRouter(lc fx.Lifecycle) *gin.Engine {

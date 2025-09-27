@@ -2,7 +2,11 @@ package app
 
 import (
 	"go-shazam/internal/core"
-	"go-shazam/internal/http"
+	appHttp "go-shazam/internal/http"
+	"go-shazam/internal/song"
+	"go-shazam/internal/spotify"
+	"go-shazam/internal/youtube"
+	"net/http"
 
 	"go.uber.org/fx"
 )
@@ -10,6 +14,10 @@ import (
 func NewApp() *fx.App {
 	return fx.New(
 		core.Module,
-		http.Module,
+		appHttp.Module,
+		song.Module,
+		spotify.Module,
+		youtube.Module,
+		fx.Invoke(func(r *http.Server) {}),
 	)
 }

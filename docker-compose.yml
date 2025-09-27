@@ -1,9 +1,9 @@
-version: "3.9"
-
 services:
   server:
     build:
       context: ./server
+    env_file:
+      - ./server/.env
     ports:
       - "${APP_PORT}:${APP_PORT}"
     environment:
@@ -42,7 +42,7 @@ services:
         - '-d'
         - '${DB_DATABASE}'
         - '-U'
-        - '${DB_USERNAME}'
+        - '${DB_USER}'
       retries: 3
       timeout: 5s
 

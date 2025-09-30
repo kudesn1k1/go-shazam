@@ -17,30 +17,27 @@ import (
 )
 
 type YoutubeSongDownloader struct {
-	config *Config
-	http   *http.Client
+	http *http.Client
 }
 
-func NewYoutubeSongDownloader(c *Config) song.SongDownloader {
+func NewYoutubeSongDownloader() song.SongDownloader {
 	return &YoutubeSongDownloader{
-		config: c,
-		http:   &http.Client{Timeout: 10 * time.Second},
+		http: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
 func (s *YoutubeSongDownloader) DownloadSong(ctx context.Context, data *song.SongMetadata, dir string) (*song.DownloadedSong, error) {
 	logger := logger.FromContext(ctx)
 
-	logger.Info("Downloading song", "title", data.Title, "artist", data.Artist)
+	logger.Info("Searching for song", "title", data.Title, "artist", data.Artist)
 	searchResults, err := s.searchVideoByParsing(ctx, fmt.Sprintf("%s %s", data.Title, data.Artist), 5)
 	if err != nil {
 		logger.Error("Failed to download song", "title", data.Title, "artist", data.Artist, "error", err)
 		return nil, err
 	}
 
-	logger.Info("Found search results", "count", len(searchResults))
 	for _, result := range searchResults {
-		logger.Info("Downloading song", "title", result.Title, "duration", result.Duration, "id", result.ID)
+		logger.Info("Found song", "title", result.Title, "duration", result.Duration, "id", result.ID)
 	}
 
 	return nil, nil

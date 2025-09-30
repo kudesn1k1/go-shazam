@@ -24,7 +24,6 @@ func NewSongService(songMetadataSource SongMetadataSource, songDownloader SongDo
 
 func (s *SongService) GetSongsMetadata(ctx context.Context, link string) (*SongMetadata, error) {
 	songMeta, err := s.songMetadataSource.GetSongsMetadata(ctx, link)
-	s.songDownloader.DownloadSong(ctx, songMeta, "/tmp")
 
 	return songMeta, err
 }

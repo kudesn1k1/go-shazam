@@ -22,11 +22,11 @@ func (h *SongHandler) Get(c *gin.Context) {
 		return
 	}
 
-	song, err := h.songService.GetSongsMetadata(c.Request.Context(), songRequest.Link)
+	meta, song, err := h.songService.DownloadSong(c.Request.Context(), songRequest.Link)
 	if err != nil {
 		c.JSON(500, err.Error())
 		return
 	}
 
-	c.JSON(200, song)
+	c.JSON(200, gin.H{"meta": meta, "song": song})
 }

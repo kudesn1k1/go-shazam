@@ -7,13 +7,17 @@ import (
 	"go-shazam/internal/logger"
 	"go-shazam/internal/song"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/lrstanley/go-ytdlp"
 )
 
 type YoutubeSongDownloader struct {
@@ -36,11 +40,58 @@ func (s *YoutubeSongDownloader) DownloadSong(ctx context.Context, data *song.Son
 		return nil, err
 	}
 
-	for _, result := range searchResults {
-		logger.Info("Found song", "title", result.Title, "duration", result.Duration, "id", result.ID)
+	match, err := s.findDurationMatch(data.DurationMs, searchResults)
+	if err != nil {
+		logger.Error("Failed to download song", "title", data.Title, "artist", data.Artist, "error", err)
+		return nil, err
 	}
 
-	return nil, nil
+	logger.Info("Found song", "title", match.Title, "duration", match.DurationMs, "id", match.ID)
+
+	err = s.downloadAudio(ctx, dir, match.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &song.DownloadedSong{
+		Filename: fmt.Sprintf("%s.m4a", match.ID),
+		Path:     dir,
+	}, nil
+}
+
+func (s *YoutubeSongDownloader) downloadAudio(ctx context.Context, dir string, id string) error {
+	logger := logger.FromContext(ctx)
+
+	//Format 140 - m4a audio, 128kbps
+	dl := ytdlp.New().
+		Format("140").
+		Output(filepath.Join(dir, fmt.Sprintf("%s.m4a", id))).
+		ConcurrentFragments(4).
+		AddHeaders("User-Agent: Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Mobile Safari/537.36").
+		CacheDir("/tmp/ytcache").
+		HTTPChunkSize("10M").
+		Verbose()
+
+	url := fmt.Sprintf("https://www.youtube.com/watch?v=%s", id)
+	logger.Info("Downloading audio with yt-dlp", "url", url, "ytId", id)
+
+	_, err := dl.Run(ctx, url)
+	if err != nil {
+		logger.Error("Failed to download audio with yt-dlp", "ytId", id, "error", err)
+		return fmt.Errorf("failed to download audio: %w", err)
+	}
+
+	filePath := filepath.Join(dir, fmt.Sprintf("%s.m4a", id))
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat downloaded file: %w", err)
+	}
+	if info.Size() == 0 {
+		return fmt.Errorf("downloaded file is empty: %s", filePath)
+	}
+
+	logger.Info("Downloaded audio successfully", "ytId", id, "size_bytes", info.Size())
+	return nil
 }
 
 func (s *YoutubeSongDownloader) searchVideoByParsing(ctx context.Context, query string, limit int) (results []*SearchResult, err error) {
@@ -129,15 +180,15 @@ func (s *YoutubeSongDownloader) searchVideoByParsing(ctx context.Context, query 
 		}
 
 		durationData, err := jsonparser.GetString(value, "videoRenderer", "lengthText", "simpleText")
-		duration, err := parseYouTubeDuration(durationData)
+		duration, err := s.parseYouTubeDurationMs(durationData)
 		if err != nil {
 			return
 		}
 
 		results = append(results, &SearchResult{
-			Title:    title,
-			Duration: duration,
-			ID:       id,
+			Title:      title,
+			DurationMs: duration,
+			ID:         id,
 		})
 	})
 
@@ -148,21 +199,60 @@ func (s *YoutubeSongDownloader) searchVideoByParsing(ctx context.Context, query 
 	return results, nil
 }
 
-func parseYouTubeDuration(duration string) (int, error) {
+func (s *YoutubeSongDownloader) parseYouTubeDurationMs(duration string) (int, error) {
 	parts := strings.Split(duration, ":")
 	if len(parts) < 2 || len(parts) > 3 {
 		return 0, fmt.Errorf("invalid duration format: %s", duration)
 	}
 
 	var hours, minutes, seconds int
+	var err error
+
 	if len(parts) == 3 {
-		hours, _ = strconv.Atoi(parts[0])
-		minutes, _ = strconv.Atoi(parts[1])
-		seconds, _ = strconv.Atoi(parts[2])
+		hours, err = strconv.Atoi(parts[0])
+		if err != nil {
+			return 0, fmt.Errorf("invalid hours format: %s", parts[0])
+		}
+		minutes, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return 0, fmt.Errorf("invalid minutes format: %s", parts[1])
+		}
+		seconds, err = strconv.Atoi(parts[2])
+		if err != nil {
+			return 0, fmt.Errorf("invalid seconds format: %s", parts[2])
+		}
 	} else {
-		minutes, _ = strconv.Atoi(parts[0])
-		seconds, _ = strconv.Atoi(parts[1])
+		minutes, err = strconv.Atoi(parts[0])
+		if err != nil {
+			return 0, fmt.Errorf("invalid minutes format: %s", parts[0])
+		}
+		seconds, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return 0, fmt.Errorf("invalid seconds format: %s", parts[1])
+		}
 	}
 
-	return hours*3600 + minutes*60 + seconds, nil
+	return (hours*3600 + minutes*60 + seconds) * 1000, nil
+}
+
+func (s *YoutubeSongDownloader) findDurationMatch(duration int, results []*SearchResult) (*SearchResult, error) {
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no results found")
+	}
+
+	diff := func(a, b int) int {
+		return int(math.Abs(float64(a - b)))
+	}
+
+	match := results[0]
+	minDiff := diff(match.DurationMs, duration)
+
+	for _, result := range results[1:] {
+		if resultDiff := diff(result.DurationMs, duration); resultDiff < minDiff {
+			minDiff = resultDiff
+			match = result
+		}
+	}
+
+	return match, nil
 }

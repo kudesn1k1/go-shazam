@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -33,6 +34,23 @@ func (m *MockSongDownloader) DownloadSong(ctx context.Context, data *SongMetadat
 	return args.Get(0).(*DownloadedSong), args.Error(1)
 }
 
+type MockSongRepository struct {
+	mock.Mock
+}
+
+func (m *MockSongRepository) Save(ctx context.Context, song *SongEntity) error {
+	args := m.Called(ctx, song)
+	return args.Error(0)
+}
+
+func (m *MockSongRepository) FindByID(ctx context.Context, id uuid.UUID) (*SongEntity, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*SongEntity), args.Error(1)
+}
+
 func TestSongService_GetSongsMetadata_Success(t *testing.T) {
 	mockMetadataSource := new(MockSongMetadataSource)
 
@@ -46,7 +64,11 @@ func TestSongService_GetSongsMetadata_Success(t *testing.T) {
 
 	mockMetadataSource.On("GetSongsMetadata", mock.Anything, "spotify-link").Return(expectedMetadata, nil)
 
-	service := NewSongService(mockMetadataSource, mockDownloader)
+	mockRepo := new(MockSongRepository)
+	mockRepo.On("Save", mock.Anything, mock.Anything).Return(nil)
+	mockRepo.On("FindByID", mock.Anything, mock.Anything).Return(nil, nil)
+
+	service := NewSongService(mockMetadataSource, mockDownloader, mockRepo, nil, nil)
 
 	result, err := service.GetSongsMetadata(context.Background(), "spotify-link")
 
@@ -62,7 +84,7 @@ func TestSongService_GetSongsMetadata_MetadataSourceError(t *testing.T) {
 	expectedError := errors.New("failed to get metadata")
 	mockMetadataSource.On("GetSongsMetadata", mock.Anything, "invalid-link").Return(nil, expectedError)
 
-	service := NewSongService(mockMetadataSource, mockDownloader)
+	service := NewSongService(mockMetadataSource, mockDownloader, nil, nil, nil)
 
 	result, err := service.GetSongsMetadata(context.Background(), "invalid-link")
 

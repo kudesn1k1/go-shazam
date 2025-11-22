@@ -34,7 +34,7 @@ func (s *YoutubeSongDownloader) DownloadSong(ctx context.Context, data *song.Son
 	logger := logger.FromContext(ctx)
 
 	logger.Info("Searching for song", "title", data.Title, "artist", data.Artist)
-	searchResults, err := s.searchVideoByParsing(ctx, fmt.Sprintf("%s %s", data.Title, data.Artist), 5)
+	searchResults, err := s.searchVideoByParsing(ctx, fmt.Sprintf("%s %s Official Audio", data.Title, data.Artist), 5)
 	if err != nil {
 		logger.Error("Failed to download song", "title", data.Title, "artist", data.Artist, "error", err)
 		return nil, err
@@ -56,16 +56,19 @@ func (s *YoutubeSongDownloader) DownloadSong(ctx context.Context, data *song.Son
 	return &song.DownloadedSong{
 		Filename: fmt.Sprintf("%s.m4a", match.ID),
 		Path:     dir,
+		SourceID: match.ID,
 	}, nil
 }
 
 func (s *YoutubeSongDownloader) downloadAudio(ctx context.Context, dir string, id string) error {
 	logger := logger.FromContext(ctx)
 
+	filePath := filepath.Join(dir, fmt.Sprintf("%s.m4a", id))
+
 	//Format 140 - m4a audio, 128kbps
 	dl := ytdlp.New().
 		Format("140").
-		Output(filepath.Join(dir, fmt.Sprintf("%s.m4a", id))).
+		Output(filePath).
 		ConcurrentFragments(4).
 		AddHeaders("User-Agent: Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Mobile Safari/537.36").
 		CacheDir("/tmp/ytcache").
@@ -81,7 +84,6 @@ func (s *YoutubeSongDownloader) downloadAudio(ctx context.Context, dir string, i
 		return fmt.Errorf("failed to download audio: %w", err)
 	}
 
-	filePath := filepath.Join(dir, fmt.Sprintf("%s.m4a", id))
 	info, err := os.Stat(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to stat downloaded file: %w", err)

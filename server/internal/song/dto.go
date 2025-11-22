@@ -9,6 +9,7 @@ type SongMetadata struct {
 type DownloadedSong struct {
 	Filename string
 	Path     string
+	SourceID string
 }
 
 type GetSongRequest struct {

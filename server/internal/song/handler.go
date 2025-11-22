@@ -9,12 +9,12 @@ type SongHandler struct {
 func NewSongHandler(r *gin.Engine, songService *SongService) *SongHandler {
 	h := &SongHandler{songService: songService}
 
-	r.POST("/api/song/add", h.Get)
+	r.POST("/api/song/add", h.Add)
 
 	return h
 }
 
-func (h *SongHandler) Get(c *gin.Context) {
+func (h *SongHandler) Add(c *gin.Context) {
 	songRequest := GetSongRequest{}
 
 	if err := c.ShouldBind(&songRequest); err != nil {

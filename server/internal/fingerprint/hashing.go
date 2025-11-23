@@ -9,9 +9,7 @@ import (
 )
 
 const (
-	TargetZoneStartOffset = 5  // Number of peaks ahead to start target zone
-	TargetZoneSize        = 50 // Size of target zone (in number of peaks to check, or time)
-	FanOut                = 5  // Number of nearest neighbors to pair with
+	FanOut = 5 // Number of nearest neighbors to pair with
 )
 
 func CreateHashes(peaks []Peak, songID uuid.UUID) []Hash {
@@ -29,10 +27,12 @@ func CreateHashes(peaks []Peak, songID uuid.UUID) []Hash {
 			target := peaks[j]
 			timeDelta := target.Time - anchor.Time
 
-			if timeDelta < 0.1 { // Too close
+			// Skip peaks that are too close (avoid self-pairing or immediate transients)
+			if timeDelta < 0.1 {
 				continue
 			}
-			if timeDelta > 2.0 { // Too far
+			// Stop looking if we are too far ahead
+			if timeDelta > 5.0 {
 				break
 			}
 

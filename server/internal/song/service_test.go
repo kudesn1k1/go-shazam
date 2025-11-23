@@ -51,6 +51,14 @@ func (m *MockSongRepository) FindByID(ctx context.Context, id uuid.UUID) (*SongE
 	return args.Get(0).(*SongEntity), args.Error(1)
 }
 
+func (m *MockSongRepository) FindByTitleAndArtist(ctx context.Context, title string, artist string) (*SongEntity, error) {
+	args := m.Called(ctx, title, artist)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*SongEntity), args.Error(1)
+}
+
 func TestSongService_GetSongsMetadata_Success(t *testing.T) {
 	mockMetadataSource := new(MockSongMetadataSource)
 
@@ -67,6 +75,7 @@ func TestSongService_GetSongsMetadata_Success(t *testing.T) {
 	mockRepo := new(MockSongRepository)
 	mockRepo.On("Save", mock.Anything, mock.Anything).Return(nil)
 	mockRepo.On("FindByID", mock.Anything, mock.Anything).Return(nil, nil)
+	mockRepo.On("FindByTitleAndArtist", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 	service := NewSongService(mockMetadataSource, mockDownloader, mockRepo, nil, nil)
 

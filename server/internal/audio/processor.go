@@ -1,9 +1,14 @@
 package audio
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"math/cmplx"
 	"os"
+
+	"os/exec"
 
 	"github.com/go-audio/wav"
 	"github.com/mjibson/go-dsp/fft"
@@ -11,8 +16,8 @@ import (
 )
 
 const (
-	WindowSize       = 4096
-	Overlap          = 0.5 // 50% overlap
+	WindowSize       = 2048
+	Overlap          = 0.50 // 50% overlap
 	TargetSampleRate = 11200
 )
 
@@ -23,29 +28,56 @@ type ProcessedFragment struct {
 	Magnitudes []float64
 }
 
-// Resample resamples the input audio from oldRate to newRate using linear interpolation.
-func Resample(input []float64, oldRate, newRate int) []float64 {
+// Resample resamples the input audio from oldRate to newRate using ffmpeg.
+// It uses pipes to avoid writing files to disk.
+func Resample(input []float64, oldRate, newRate int) ([]float64, error) {
 	if oldRate == newRate {
-		return input
+		return input, nil
 	}
 
-	ratio := float64(oldRate) / float64(newRate)
-	newLength := int(float64(len(input)) / ratio)
-	output := make([]float64, newLength)
-
-	for i := 0; i < newLength; i++ {
-		pos := float64(i) * ratio
-		index := int(pos)
-		frac := pos - float64(index)
-
-		if index+1 < len(input) {
-			output[i] = input[index]*(1-frac) + input[index+1]*frac
-		} else {
-			output[i] = input[index]
+	inputBuf := new(bytes.Buffer)
+	for _, s := range input {
+		if err := binary.Write(inputBuf, binary.LittleEndian, float32(s)); err != nil {
+			return nil, fmt.Errorf("binary write failed: %w", err)
 		}
 	}
 
-	return output
+	cmd := exec.Command(
+		"ffmpeg",
+		"-f", "f32le",
+		"-ar", fmt.Sprint(oldRate),
+		"-ac", "1",
+		"-i", "pipe:0",
+		"-ar", fmt.Sprint(newRate),
+		"-ac", "1",
+		"-f", "f32le",
+		"pipe:1",
+		"-loglevel", "error",
+		"-nostats",
+	)
+
+	cmd.Stdin = inputBuf
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("ffmpeg failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	outBytes := stdout.Bytes()
+	if len(outBytes)%4 != 0 {
+		return nil, fmt.Errorf("invalid ffmpeg output length: %d", len(outBytes))
+	}
+
+	out := make([]float64, len(outBytes)/4)
+	for i := 0; i < len(out); i++ {
+		bits := binary.LittleEndian.Uint32(outBytes[i*4 : (i+1)*4])
+		out[i] = float64(math.Float32frombits(bits))
+	}
+
+	return out, nil
 }
 
 // Returns the audio samples and sample rate

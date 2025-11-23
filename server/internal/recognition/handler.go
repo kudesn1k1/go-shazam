@@ -66,7 +66,12 @@ func (h *RecognitionHandler) HandleWebSocket(c *gin.Context) {
 
 				// Resample to match the database sample rate
 				if sampleRate != audio.TargetSampleRate {
-					audioData = audio.Resample(audioData, sampleRate, audio.TargetSampleRate)
+					var err error
+					audioData, err = audio.Resample(audioData, sampleRate, audio.TargetSampleRate)
+					if err != nil {
+						conn.WriteJSON(gin.H{"error": fmt.Sprintf("resampling error: %s", err.Error())})
+						continue
+					}
 				}
 
 				fragments, err := audio.ProcessAudio(audioData, audio.TargetSampleRate)
@@ -82,9 +87,10 @@ func (h *RecognitionHandler) HandleWebSocket(c *gin.Context) {
 					conn.WriteJSON(gin.H{"found": false})
 				} else {
 					conn.WriteJSON(gin.H{
-						"found": true,
-						"song":  match.Song,
-						"score": match.Score,
+						"found":       true,
+						"song":        match.Song,
+						"time_offset": match.TimeOffset,
+						"score":       match.Score,
 					})
 				}
 

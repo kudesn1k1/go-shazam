@@ -27,9 +27,11 @@ func NewRecognitionService(
 	}
 }
 
+// TODO: return song metadata instead of song entity
 type MatchResult struct {
-	Song  *song.SongEntity `json:"song"`
-	Score int              `json:"score"`
+	Song       *song.SongEntity `json:"song"`
+	TimeOffset float64          `json:"time_offset"`
+	Score      int              `json:"score"`
 }
 
 // IdentifySong processes audio fragments and returns the best matching song.
@@ -62,13 +64,13 @@ func (s *RecognitionService) IdentifySong(ctx context.Context, fragments []audio
 
 	bestScore := 0
 	var bestSongID uuid.UUID
+	var bestTimeOffset float64
 
 	for _, dbHash := range dbHashes {
 		if sampleOffsets, ok := sampleHashMap[dbHash.HashValue]; ok {
 			for _, sampleOffset := range sampleOffsets {
 				diff := dbHash.TimeOffset - sampleOffset
 
-				// Binning
 				bin := int(math.Round(diff * 20)) // 50ms bins
 
 				if scores[dbHash.SongID] == nil {
@@ -81,6 +83,7 @@ func (s *RecognitionService) IdentifySong(ctx context.Context, fragments []audio
 				if count > bestScore {
 					bestScore = count
 					bestSongID = dbHash.SongID
+					bestTimeOffset = dbHash.TimeOffset
 				}
 			}
 		}
@@ -99,7 +102,8 @@ func (s *RecognitionService) IdentifySong(ctx context.Context, fragments []audio
 	}
 
 	return &MatchResult{
-		Song:  songEntity,
-		Score: bestScore,
+		Song:       songEntity,
+		TimeOffset: bestTimeOffset,
+		Score:      bestScore,
 	}, nil
 }

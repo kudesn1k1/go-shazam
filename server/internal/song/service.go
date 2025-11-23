@@ -51,38 +51,51 @@ func (s *SongService) GetSongsMetadata(ctx context.Context, link string) (*SongM
 	return songMeta, err
 }
 
-func (s *SongService) DownloadSong(ctx context.Context, link string) (*SongMetadata, *DownloadedSong, error) {
+func (s *SongService) AddSong(ctx context.Context, link string) (*SongMetadata, error) {
 	songMeta, err := s.songMetadataSource.GetSongsMetadata(ctx, link)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+
+	existingSong, err := s.songRepository.FindByTitleAndArtist(ctx, songMeta.Title, songMeta.Artist)
+	if err != nil {
+		return nil, err
+	}
+	if existingSong != nil {
+		return &SongMetadata{
+			Title:      existingSong.Title,
+			Artist:     existingSong.Artist,
+			DurationMs: existingSong.Duration,
+		}, nil
+	}
+
 	downloadedSong, err := s.songDownloader.DownloadSong(ctx, songMeta, os.TempDir())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// 1. Convert to WAV
 	fullPath := filepath.Join(downloadedSong.Path, downloadedSong.Filename)
 	wavPath, err := converter.ConvertToWav(fullPath, audio.TargetSampleRate)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to convert to wav: %w", err)
+		return nil, fmt.Errorf("failed to convert to wav: %w", err)
 	}
 
 	// 2. Load WAV
 	samples, sampleRate, err := audio.LoadWav(wavPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load wav: %w", err)
+		return nil, fmt.Errorf("failed to load wav: %w", err)
 	}
 
 	// 3. Process (FFT) (CPU bound - do outside transaction)
 	fragments, err := audio.ProcessAudio(samples, sampleRate)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to process audio: %w", err)
+		return nil, fmt.Errorf("failed to process audio: %w", err)
 	}
 
 	songID, err := uuid.NewV7()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate uuid: %w", err)
+		return nil, fmt.Errorf("failed to generate uuid: %w", err)
 	}
 
 	songEntity := &SongEntity{
@@ -97,12 +110,10 @@ func (s *SongService) DownloadSong(ctx context.Context, link string) (*SongMetad
 	hashes := s.fingerprintService.CreateFingerprints(fragments, songID, sampleRate)
 
 	_, err = db.Transactional(ctx, s.transactionManager, func(txCtx context.Context) (interface{}, error) {
-		// Save Song
 		if err := s.songRepository.Save(txCtx, songEntity); err != nil {
 			return nil, fmt.Errorf("failed to save song: %w", err)
 		}
 
-		// Save Fingerprints
 		if err := s.fingerprintService.SaveFingerprints(txCtx, hashes); err != nil {
 			return nil, fmt.Errorf("failed to save fingerprints: %w", err)
 		}
@@ -111,10 +122,10 @@ func (s *SongService) DownloadSong(ctx context.Context, link string) (*SongMetad
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	fmt.Printf("Processed %d fragments and saved %d hashes for song %s\n", len(fragments), len(hashes), songMeta.Title)
 
-	return songMeta, downloadedSong, nil
+	return songMeta, nil
 }

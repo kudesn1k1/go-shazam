@@ -10,7 +10,8 @@ import (
 
 var Module = fx.Module("core",
 	fx.Provide(db.NewDB, db.NewTransactionManager, db.NewRepository),
-	fx.Invoke(func(r *gin.Engine) {
-		r.Use(middleware.CorrelationMiddleware())
-	}),
 )
+
+func RegisterCoreMiddleware(r *gin.Engine) {
+	r.Use(middleware.CorrelationMiddleware())
+}

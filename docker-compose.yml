@@ -2,18 +2,44 @@ services:
   server:
     build:
       context: ./server
+    entrypoint: ["/docker-entrypoint.sh"]
     env_file:
       - ./server/.env
     ports:
       - "${APP_PORT}:${APP_PORT}"
     environment:
       - APP_PORT=${APP_PORT}
+      - DB_HOST=${DB_HOST}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_DATABASE=${DB_DATABASE}
       - DB_PORT=${DB_PORT}
+      - REDIS_ADDR=redis:6379
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./server
+    entrypoint: ["/worker"]
+    env_file:
+      - ./server/.env
+    environment:
+      - APP_PORT=${APP_PORT}
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_PORT=${DB_PORT}
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   client:
     build:
@@ -43,8 +69,25 @@ services:
         - '${DB_DATABASE}'
         - '-U'
         - '${DB_USER}'
-      retries: 3
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: go-shazam-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
 volumes:
   db_data:
+  redis_data:

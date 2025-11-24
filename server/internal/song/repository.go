@@ -2,6 +2,8 @@ package song
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"go-shazam/internal/core/db"
 
 	"github.com/google/uuid"
@@ -25,6 +27,9 @@ func (r *SongRepository) FindByID(ctx context.Context, id uuid.UUID) (*SongEntit
 	query := "SELECT * FROM songs WHERE id = $1"
 	var song SongEntity
 	if err := r.db.Connection(ctx).GetContext(ctx, &song, query, id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &song, nil
@@ -34,6 +39,9 @@ func (r *SongRepository) FindByTitleAndArtist(ctx context.Context, title string,
 	query := "SELECT * FROM songs WHERE title = $1 AND artist = $2"
 	var song SongEntity
 	if err := r.db.Connection(ctx).GetContext(ctx, &song, query, title, artist); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &song, nil

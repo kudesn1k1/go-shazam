@@ -21,10 +21,12 @@ type RecognitionHandler struct {
 	service *RecognitionService
 }
 
-func NewRecognitionHandler(r *gin.Engine, service *RecognitionService) *RecognitionHandler {
-	h := &RecognitionHandler{service: service}
+func NewRecognitionHandler(service *RecognitionService) *RecognitionHandler {
+	return &RecognitionHandler{service: service}
+}
+
+func RegisterRoutes(r *gin.Engine, h *RecognitionHandler) {
 	r.GET("/api/recognize/ws", h.HandleWebSocket)
-	return h
 }
 
 func (h *RecognitionHandler) HandleWebSocket(c *gin.Context) {

@@ -6,12 +6,12 @@ type SongHandler struct {
 	songService *SongService
 }
 
-func NewSongHandler(r *gin.Engine, songService *SongService) *SongHandler {
-	h := &SongHandler{songService: songService}
+func NewSongHandler(songService *SongService) *SongHandler {
+	return &SongHandler{songService: songService}
+}
 
+func RegisterRoutes(r *gin.Engine, h *SongHandler) {
 	r.POST("/api/song/add", h.Add)
-
-	return h
 }
 
 func (h *SongHandler) Add(c *gin.Context) {

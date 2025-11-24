@@ -7,7 +7,11 @@ var Module = fx.Module(
 	fx.Provide(
 		NewSongRepository,
 		NewSongService,
-		NewSongHandler,
 	),
-	fx.Invoke(func(h *SongHandler) {}),
+)
+
+var HttpModule = fx.Module(
+	"song-http",
+	fx.Provide(NewSongHandler),
+	fx.Invoke(RegisterRoutes),
 )

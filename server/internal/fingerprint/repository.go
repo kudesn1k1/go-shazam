@@ -17,7 +17,7 @@ func NewRepository(db *db.Repository) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) FindHashesByValues(ctx context.Context, hashValues []uint32) ([]Hash, error) {
+func (r *Repository) FindHashesByValues(ctx context.Context, hashValues []int64) ([]Hash, error) {
 	if len(hashValues) == 0 {
 		return nil, nil
 	}

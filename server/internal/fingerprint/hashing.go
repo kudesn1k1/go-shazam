@@ -1,15 +1,17 @@
 package fingerprint
 
 import (
-	"fmt"
-	"hash/fnv"
+	"go-shazam/internal/audio"
 	"sort"
 
 	"github.com/google/uuid"
 )
 
 const (
-	FanOut = 5 // Number of nearest neighbors to pair with
+	FanOut       = 5
+	MinTimeDelta = 0.1
+	MaxTimeDelta = 3.0
+	TimeDeltaRes = 100
 )
 
 func CreateHashes(peaks []Peak, songID uuid.UUID) []Hash {
@@ -20,19 +22,19 @@ func CreateHashes(peaks []Peak, songID uuid.UUID) []Hash {
 	})
 
 	for i, anchor := range peaks {
-		// Target Zone: [anchor.Time + 0.5s, anchor.Time + 5.0s]
-
 		targetCount := 0
+
 		for j := i + 1; j < len(peaks); j++ {
 			target := peaks[j]
 			timeDelta := target.Time - anchor.Time
 
-			// Skip peaks that are too close (avoid self-pairing or immediate transients)
-			if timeDelta < 0.1 {
+			// Skip peaks that are too close
+			if timeDelta < MinTimeDelta {
 				continue
 			}
+
 			// Stop looking if we are too far ahead
-			if timeDelta > 5.0 {
+			if timeDelta > MaxTimeDelta {
 				break
 			}
 
@@ -52,21 +54,15 @@ func CreateHashes(peaks []Peak, songID uuid.UUID) []Hash {
 	return hashes
 }
 
-func generateHash(f1, f2, dt float64) uint32 {
-	// Quantize frequencies and time delta to reduce sensitivity to noise
-	// Frequencies are already bin-centered, but time delta needs quantization.
+// generateHash creates a 64-bit hash using bit packing
+// Layout: [freq1: 10 bits][freq2: 10 bits][timeDelta: 14 bits]
+func generateHash(f1, f2, dt float64) int64 {
+	// At 11200 Hz sample rate with 2048 window, bin size = 11200/2048 ≈ 5.47 Hz
+	const binSize = float64(audio.TargetSampleRate) / float64(audio.WindowSize)
 
-	// Let's bin frequencies to integer (they are float from bin center)
-	// and time delta to integer (milliseconds / 10).
+	freq1Bin := int(f1/binSize) & 0x3FF
+	freq2Bin := int(f2/binSize) & 0x3FF
+	timeDeltaBin := int(dt*TimeDeltaRes) & 0x3FFF
 
-	freq1 := int(f1)
-	freq2 := int(f2)
-	timeDelta := int(dt * 100) // 10ms units
-
-	// Create a unique string key: "f1:f2:dt"
-	key := fmt.Sprintf("%d:%d:%d", freq1, freq2, timeDelta)
-
-	h := fnv.New32a()
-	h.Write([]byte(key))
-	return h.Sum32()
+	return int64(freq1Bin)<<24 | int64(freq2Bin)<<14 | int64(timeDeltaBin)
 }

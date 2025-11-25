@@ -29,7 +29,7 @@ func (s *FingerprintService) SaveFingerprints(ctx context.Context, hashes []Hash
 
 // GetMatchingHashes finds all hashes in the database that match the given sample hashes.
 func (s *FingerprintService) GetMatchingHashes(ctx context.Context, sampleHashes []Hash) ([]Hash, error) {
-	hashValues := make([]uint32, len(sampleHashes))
+	hashValues := make([]int64, len(sampleHashes))
 	for i, h := range sampleHashes {
 		hashValues[i] = h.HashValue
 	}

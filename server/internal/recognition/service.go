@@ -12,6 +12,12 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	TimeBinResolution = 20   // 50ms bins (1/0.05)
+	MinAbsoluteScore  = 5    // Minimum absolute score to consider a match
+	MinScoreRatio     = 0.01 // Minimum score as ratio of sample hashes (1%)
+)
+
 type RecognitionService struct {
 	fingerprintService *fingerprint.FingerprintService
 	songRepository     song.SongRepositoryInterface
@@ -36,11 +42,10 @@ type MatchResult struct {
 
 // IdentifySong processes audio fragments and returns the best matching song.
 func (s *RecognitionService) IdentifySong(ctx context.Context, fragments []audio.ProcessedFragment, sampleRate int) (*MatchResult, error) {
-	// Use a dummy ID since we don't know the song yet
-	logger := logger.FromContext(ctx)
+	log := logger.FromContext(ctx)
 
-	dummyID := uuid.Nil
-	sampleHashes := s.fingerprintService.CreateFingerprints(fragments, dummyID, sampleRate)
+	// Generate fingerprints from sample (use Nil UUID since we don't know the song)
+	sampleHashes := s.fingerprintService.CreateFingerprints(fragments, uuid.Nil, sampleRate)
 
 	if len(sampleHashes) == 0 {
 		return nil, fmt.Errorf("no fingerprints generated from audio")
@@ -52,50 +57,66 @@ func (s *RecognitionService) IdentifySong(ctx context.Context, fragments []audio
 	}
 
 	if len(dbHashes) == 0 {
+		log.Info("No matching hashes found in database")
 		return nil, nil
 	}
 
-	scores := make(map[uuid.UUID]map[int]int)
-
-	sampleHashMap := make(map[uint32][]float64)
+	sampleHashMap := make(map[int64][]float64)
 	for _, h := range sampleHashes {
 		sampleHashMap[h.HashValue] = append(sampleHashMap[h.HashValue], h.TimeOffset)
 	}
+
+	// scores[songID][timeBin] = count
+	scores := make(map[uuid.UUID]map[int]int)
 
 	bestScore := 0
 	var bestSongID uuid.UUID
 	var bestTimeOffset float64
 
 	for _, dbHash := range dbHashes {
-		if sampleOffsets, ok := sampleHashMap[dbHash.HashValue]; ok {
-			for _, sampleOffset := range sampleOffsets {
-				diff := dbHash.TimeOffset - sampleOffset
+		sampleOffsets, ok := sampleHashMap[dbHash.HashValue]
+		if !ok {
+			continue
+		}
 
-				bin := int(math.Round(diff * 20)) // 50ms bins
+		for _, sampleOffset := range sampleOffsets {
+			diff := dbHash.TimeOffset - sampleOffset
 
-				if scores[dbHash.SongID] == nil {
-					scores[dbHash.SongID] = make(map[int]int)
-				}
+			bin := int(math.Round(diff * TimeBinResolution)) // 50 ms resolution
 
-				scores[dbHash.SongID][bin]++
-				count := scores[dbHash.SongID][bin]
+			if scores[dbHash.SongID] == nil {
+				scores[dbHash.SongID] = make(map[int]int)
+			}
 
-				if count > bestScore {
-					bestScore = count
-					bestSongID = dbHash.SongID
-					bestTimeOffset = dbHash.TimeOffset
-				}
+			scores[dbHash.SongID][bin]++
+			count := scores[dbHash.SongID][bin]
+
+			if count > bestScore {
+				bestScore = count
+				bestSongID = dbHash.SongID
+				bestTimeOffset = dbHash.TimeOffset
 			}
 		}
 	}
 
-	logger.Info(fmt.Sprintf("Recognition result: BestScore=%d, TotalCandidates=%d", bestScore, len(scores)))
+	log.Info("Recognition analysis complete",
+		"bestScore", bestScore,
+		"totalCandidates", len(scores),
+		"sampleHashes", len(sampleHashes),
+	)
 
-	if bestScore < 5 { // Minimum threshold to consider it a match
-		logger.Info("Score too low", "bestScore", bestScore)
+	// Adaptive threshold: max(MinAbsoluteScore, sampleHashes * MinScoreRatio)
+	minThreshold := max(MinAbsoluteScore, int(float64(len(sampleHashes))*MinScoreRatio))
+
+	if bestScore < minThreshold {
+		log.Info("Score below threshold",
+			"bestScore", bestScore,
+			"threshold", minThreshold,
+		)
 		return nil, nil
 	}
 
+	// Fetch song details
 	songEntity, err := s.songRepository.FindByID(ctx, bestSongID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find song %s: %w", bestSongID, err)
@@ -106,4 +127,11 @@ func (s *RecognitionService) IdentifySong(ctx context.Context, fragments []audio
 		TimeOffset: bestTimeOffset,
 		Score:      bestScore,
 	}, nil
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

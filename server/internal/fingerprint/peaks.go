@@ -2,6 +2,7 @@ package fingerprint
 
 import (
 	"go-shazam/internal/audio"
+	"math"
 	"sort"
 )
 
@@ -10,23 +11,30 @@ var bands = []struct {
 	MinFreq float64
 	MaxFreq float64
 }{
-	{0, 300},
-	{300, 2000},
-	{2000, 5000},
-	{5000, 5600}, // Nyquist
+	{80, 400},
+	{400, 1600},
+	{1600, 3200},
+	{3200, 5600},
 }
 
 const (
-	MADMultiplier = 3.0
+	MADMultiplier   = 3.0
+	MaxPeaksPerBand = 1
+	MinMagnitude    = 1.0
 )
+
+type peakCandidate struct {
+	frequency float64
+	magnitude float64
+	binIndex  int
+}
 
 func ExtractPeaks(fragments []audio.ProcessedFragment, sampleRate int) []Peak {
 	var peaks []Peak
 	binSize := float64(sampleRate) / float64(audio.WindowSize)
 
 	for _, fragment := range fragments {
-		bandMagnitudes := make([][]float64, len(bands))
-		bandIndices := make([][]int, len(bands))
+		bandCandidates := make([][]peakCandidate, len(bands))
 
 		for i, mag := range fragment.Magnitudes {
 			// Only check up to Nyquist
@@ -40,77 +48,106 @@ func ExtractPeaks(fragments []audio.ProcessedFragment, sampleRate int) []Peak {
 				continue
 			}
 
-			bandMagnitudes[bandIdx] = append(bandMagnitudes[bandIdx], mag)
-			bandIndices[bandIdx] = append(bandIndices[bandIdx], i)
+			bandCandidates[bandIdx] = append(bandCandidates[bandIdx], peakCandidate{
+				frequency: freq,
+				magnitude: mag,
+				binIndex:  i,
+			})
 		}
 
 		// Process each band
 		for b := range bands {
-			mags := bandMagnitudes[b]
-			if len(mags) == 0 {
+			candidates := bandCandidates[b]
+			if len(candidates) == 0 {
 				continue
 			}
 
-			// Calculate dynamic threshold using Median
-			sortedMags := make([]float64, len(mags))
-			copy(sortedMags, mags)
-			sort.Float64s(sortedMags)
+			threshold := calculateMADThreshold(candidates)
 
-			median := sortedMags[len(sortedMags)/2]
+			localMaxima := findLocalMaxima(candidates, fragment.Magnitudes, threshold)
 
-			// 2. Calculate MAD (Median Absolute Deviation)? Or just use Median * Multiplier?
-			// Robust statistical threshold often uses Median + k * MAD
-			// MAD = median(|x_i - median|)
-			// Let's calculate MAD
-			/*
-				deviations := make([]float64, len(mags))
-				for k, v := range mags {
-					deviations[k] = math.Abs(v - median)
-				}
-				sort.Float64s(deviations)
-				mad := deviations[len(deviations)/2]
-				threshold := median + MADMultiplier*mad
-			*/
-
-			// Simplified approach first: if max peak in band is significantly higher than median
-			threshold := median * 2.0
-			// Ensure threshold isn't too low (noise floor)
-			if threshold < 1.0 {
-				threshold = 1.0
+			if len(localMaxima) == 0 {
+				continue
 			}
 
-			// Find local maxima in this band that exceed threshold
-			// Currently we just take the MAX peak.
-			// To improve robustness, we should just pick the strongest peak that satisfies criteria.
+			// Sort by magnitude and take only the strongest peak
+			sort.Slice(localMaxima, func(i, j int) bool {
+				return localMaxima[i].magnitude > localMaxima[j].magnitude
+			})
 
-			var bestPeak *Peak
-			maxMag := -1.0
-
-			for k, mag := range mags {
-				if mag > threshold {
-					if mag > maxMag {
-						maxMag = mag
-
-						originalIdx := bandIndices[b][k]
-						freq := float64(originalIdx) * binSize
-
-						bestPeak = &Peak{
-							Frequency: freq,
-							Magnitude: mag,
-							Time:      fragment.TimeOffset,
-							BandIndex: b,
-						}
-					}
-				}
-			}
-
-			if bestPeak != nil {
-				peaks = append(peaks, *bestPeak)
+			count := min(len(localMaxima), MaxPeaksPerBand)
+			for i := 0; i < count; i++ {
+				peaks = append(peaks, Peak{
+					Frequency: localMaxima[i].frequency,
+					Magnitude: localMaxima[i].magnitude,
+					Time:      fragment.TimeOffset,
+					BandIndex: b,
+				})
 			}
 		}
 	}
 
 	return peaks
+}
+
+// calculateMADThreshold computes threshold using Median Absolute Deviation
+func calculateMADThreshold(candidates []peakCandidate) float64 {
+	if len(candidates) == 0 {
+		return MinMagnitude
+	}
+
+	mags := make([]float64, len(candidates))
+	for i, c := range candidates {
+		mags[i] = c.magnitude
+	}
+
+	sorted := make([]float64, len(mags))
+	copy(sorted, mags)
+	sort.Float64s(sorted)
+	median := sorted[len(sorted)/2]
+
+	deviations := make([]float64, len(mags))
+	for i, m := range mags {
+		deviations[i] = math.Abs(m - median)
+	}
+	sort.Float64s(deviations)
+	mad := deviations[len(deviations)/2]
+
+	threshold := median + MADMultiplier*mad
+
+	if threshold < MinMagnitude {
+		threshold = MinMagnitude
+	}
+
+	return threshold
+}
+
+// findLocalMaxima finds peaks that are local maxima in the spectrum
+func findLocalMaxima(candidates []peakCandidate, magnitudes []float64, threshold float64) []peakCandidate {
+	var maxima []peakCandidate
+
+	for _, c := range candidates {
+		if c.magnitude < threshold {
+			continue
+		}
+
+		isMaximum := true
+		idx := c.binIndex
+
+		if idx > 0 && magnitudes[idx-1] >= c.magnitude {
+			isMaximum = false
+		}
+
+		if idx < len(magnitudes)-1 && magnitudes[idx+1] >= c.magnitude {
+			isMaximum = false
+		}
+
+		if isMaximum {
+			maxima = append(maxima, c)
+		}
+	}
+
+	return maxima
 }
 
 func getBandIndex(freq float64) int {
@@ -120,4 +157,11 @@ func getBandIndex(freq float64) int {
 		}
 	}
 	return -1
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

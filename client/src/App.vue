@@ -9,8 +9,14 @@
         </div>
       </div>
       <div class="actions">
-        <button class="ghost" @click="openAuthModal('login')">Log in</button>
-        <button class="pill" @click="openAuthModal('register')">Create account</button>
+        <template v-if="isAuthenticated">
+          <span class="user-email">{{ user?.email }}</span>
+          <button class="ghost" @click="handleLogout">Log out</button>
+        </template>
+        <template v-else>
+          <button class="ghost" @click="openAuthModal('login')">Log in</button>
+          <button class="pill" @click="openAuthModal('register')">Create account</button>
+        </template>
       </div>
     </header>
 
@@ -49,20 +55,23 @@
     <AuthModal
       v-model="isAuthModalOpen"
       :mode="authMode"
-      :pending="false"
+      :pending="authLoading"
       @submit="handleAuthSubmit"
     />
 
     <transition name="toast">
-      <div v-if="authToast" class="toast">{{ authToast }}</div>
+      <div v-if="authToast" class="toast" :class="{ 'toast-error': authToastType === 'error' }">
+        {{ authToast }}
+      </div>
     </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import AuthModal from './components/AuthModal.vue';
+import { useAuth } from './composables/useAuth';
 
 type RecognitionResult = {
   title: string;
@@ -84,12 +93,29 @@ const detectedTrack = ref<RecognitionResult | null>(null);
 const isAuthModalOpen = ref(false);
 const authMode = ref<'login' | 'register'>('login');
 const authToast = ref('');
+const authToastType = ref<'success' | 'error'>('success');
+
+const {
+  user,
+  isAuthenticated,
+  isLoading: authLoading,
+  error: authError,
+  login,
+  register,
+  logout,
+  initialize: initAuth,
+} = useAuth();
 
 let audioContext: AudioContext | null = null;
 let processor: ScriptProcessorNode | null = null;
 let socket: WebSocket | null = null;
 let stream: MediaStream | null = null;
 let autoStopTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Initialize auth on mount
+onMounted(async () => {
+  await initAuth();
+});
 
 const recordButtonLabel = computed(() => {
   if (isRecording.value) {
@@ -263,19 +289,53 @@ const openAuthModal = (mode: 'login' | 'register') => {
   isAuthModalOpen.value = true;
 };
 
-const handleAuthSubmit = (payload: { mode: 'login' | 'register'; email: string; name?: string }) => {
-  isAuthModalOpen.value = false;
-  authToast.value =
-    payload.mode === 'login'
-      ? `Welcome back, ${payload.email}!`
-      : `Account created for ${payload.name ?? payload.email}.`;
-
+const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+  authToast.value = message;
+  authToastType.value = type;
   setTimeout(() => {
     authToast.value = '';
   }, 4000);
+};
+
+const handleAuthSubmit = async (payload: { mode: 'login' | 'register'; email: string; password: string }) => {
+  const success = payload.mode === 'login'
+    ? await login(payload.email, payload.password)
+    : await register(payload.email, payload.password);
+
+  if (success) {
+    isAuthModalOpen.value = false;
+    showToast(
+      payload.mode === 'login' ? 'Welcome back!' : 'Account created successfully!',
+      'success'
+    );
+  } else {
+    showToast(authError.value || 'An error occurred', 'error');
+  }
+};
+
+const handleLogout = async () => {
+  await logout();
+  showToast('You have been logged out', 'success');
 };
 
 onBeforeUnmount(() => {
   resetRecorder();
 });
 </script>
+
+<style scoped>
+.user-email {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  margin-right: 0.5rem;
+
+  display: flex;
+  align-items: center;
+}
+
+.toast-error {
+  background: rgba(255, 78, 78, 0.15) !important;
+  border-color: rgba(255, 78, 78, 0.3) !important;
+  color: #ff9f9f !important;
+}
+</style>

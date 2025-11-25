@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"go-shazam/internal/auth"
 	"go-shazam/internal/core"
 	"go-shazam/internal/fingerprint"
 	appHttp "go-shazam/internal/http"
@@ -9,6 +10,7 @@ import (
 	"go-shazam/internal/recognition"
 	"go-shazam/internal/song"
 	"go-shazam/internal/spotify"
+	"go-shazam/internal/user"
 	"go-shazam/internal/youtube"
 	"net/http"
 
@@ -20,15 +22,18 @@ func NewWebApp() *fx.App {
 		core.Module,
 		fingerprint.Module,
 		appHttp.Module,
+		auth.Module,
 		// Core modules
 		song.Module,
 		spotify.Module,
 		youtube.Module,
 		recognition.Module,
 		queue.Module,
+		user.Module,
 		// Http modules
 		song.HttpModule,
 		recognition.HttpModule,
+		user.HttpModule,
 
 		fx.Invoke(core.RegisterCoreMiddleware),
 		fx.Invoke(func(r *http.Server) {}),

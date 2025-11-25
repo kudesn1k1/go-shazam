@@ -10,7 +10,7 @@ type Peak struct {
 }
 
 type Hash struct {
-	HashValue  uint32    `db:"hash"`
+	HashValue  int64     `db:"hash"`
 	SongID     uuid.UUID `db:"song_id"`
 	TimeOffset float64   `db:"time_offset"`
 }

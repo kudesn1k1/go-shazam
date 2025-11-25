@@ -82,7 +82,7 @@ type RecognitionResult = {
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000';
-const MAX_RECORDING_MS = 12_000;
+const MAX_RECORDING_MS = 8_000;
 
 const isRecording = ref(false);
 const isSending = ref(false);

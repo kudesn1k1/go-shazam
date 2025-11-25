@@ -12,11 +12,14 @@ import (
 )
 
 var Module = fx.Options(
-	fx.Provide(NewGinRouter, NewHttpServer, LoadConfig),
+	fx.Provide(NewGinRouter, NewHttpServer, LoadConfig, LoadCORSConfig),
 )
 
-func NewGinRouter(lc fx.Lifecycle) *gin.Engine {
+func NewGinRouter(lc fx.Lifecycle, corsConfig *CORSConfig) *gin.Engine {
 	r := gin.Default()
+
+	// Setup CORS before other middleware
+	SetupCORS(r, corsConfig)
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{

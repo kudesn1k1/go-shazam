@@ -10,10 +10,6 @@
         </header>
 
         <form @submit.prevent="handleSubmit">
-          <div v-if="isRegister" class="form-group">
-            <label for="name">Name</label>
-            <input id="name" v-model="form.name" type="text" placeholder="Jane Doe" autocomplete="name" />
-          </div>
           <div class="form-group">
             <label for="email">Email</label>
             <input
@@ -48,6 +44,8 @@
             />
           </div>
 
+          <p v-if="validationError" class="error">{{ validationError }}</p>
+
           <button class="primary" type="submit" :disabled="pending">
             {{ pending ? 'Please wait…' : submitLabel }}
           </button>
@@ -58,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 type AuthMode = 'login' | 'register';
 
@@ -70,23 +68,24 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
-  (e: 'submit', payload: { mode: AuthMode; email: string; password: string; name?: string }): void;
+  (e: 'submit', payload: { mode: AuthMode; email: string; password: string }): void;
 }>();
 
 const form = reactive({
-  name: '',
   email: '',
   password: '',
   confirm: '',
 });
 
+const validationError = ref('');
+
 watch(
   () => props.mode,
   () => {
-    form.name = '';
     form.email = '';
     form.password = '';
     form.confirm = '';
+    validationError.value = '';
   }
 );
 
@@ -99,19 +98,28 @@ const isRegister = computed(() => props.mode === 'register');
 const close = () => emit('update:modelValue', false);
 
 const handleSubmit = () => {
+  validationError.value = '';
+
   if (!form.email || !form.password) {
+    validationError.value = 'Please fill in all fields';
     return;
   }
 
-  if (isRegister.value && form.password !== form.confirm) {
-    return;
+  if (isRegister.value) {
+    if (form.password.length < 8) {
+      validationError.value = 'Password must be at least 8 characters';
+      return;
+    }
+    if (form.password !== form.confirm) {
+      validationError.value = 'Passwords do not match';
+      return;
+    }
   }
 
   emit('submit', {
     mode: props.mode,
     email: form.email,
     password: form.password,
-    name: form.name || undefined,
   });
 };
 </script>
@@ -204,6 +212,13 @@ button.primary {
 button.primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.error {
+  color: #ff9f9f;
+  font-size: 0.9rem;
+  margin: 0;
+  text-align: center;
 }
 </style>
 

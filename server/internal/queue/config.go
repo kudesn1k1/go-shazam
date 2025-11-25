@@ -9,6 +9,10 @@ type Config struct {
 }
 
 func NewConfig() *Config {
+	viper.SetConfigFile(".env")
+	viper.ReadInConfig()
+	viper.AutomaticEnv()
+
 	viper.SetDefault("REDIS_ADDR", "localhost:6379")
 	viper.SetDefault("REDIS_PASSWORD", "")
 	viper.SetDefault("REDIS_DB", 0)
@@ -19,4 +23,3 @@ func NewConfig() *Config {
 		DB:       viper.GetInt("REDIS_DB"),
 	}
 }
-

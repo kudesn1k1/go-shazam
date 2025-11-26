@@ -42,7 +42,7 @@ func (r *Repository) SaveFingerprints(ctx context.Context, hashes []Hash) error 
 		return nil
 	}
 
-	// We need to chunk this if it's too large.
+	//TODO: reconsider chunk size to reduce database load
 	chunkSize := 1000
 	for i := 0; i < len(hashes); i += chunkSize {
 		end := i + chunkSize

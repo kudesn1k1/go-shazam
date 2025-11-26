@@ -10,7 +10,7 @@ import (
 func TestSpotifySongMetadataSource_extractIdFromLink_ValidSpotifyLink(t *testing.T) {
 	source := &SpotifySongMetadataSource{}
 
-	id, err := source.extractIdFromLink("https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh")
+	id, err := source.ExtractIdFromLink("https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh")
 
 	assert.NoError(t, err)
 	assert.Equal(t, "4iV5W9uYEdYUVa79Axb7Rh", id)
@@ -19,7 +19,7 @@ func TestSpotifySongMetadataSource_extractIdFromLink_ValidSpotifyLink(t *testing
 func TestSpotifySongMetadataSource_extractIdFromLink_SpotifyLinkWithQueryParams(t *testing.T) {
 	source := &SpotifySongMetadataSource{}
 
-	id, err := source.extractIdFromLink("https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh?si=abcd1234")
+	id, err := source.ExtractIdFromLink("https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh?si=abcd1234")
 
 	assert.NoError(t, err)
 	assert.Equal(t, "4iV5W9uYEdYUVa79Axb7Rh", id)
@@ -28,7 +28,7 @@ func TestSpotifySongMetadataSource_extractIdFromLink_SpotifyLinkWithQueryParams(
 func TestSpotifySongMetadataSource_extractIdFromLink_InvalidLink(t *testing.T) {
 	source := &SpotifySongMetadataSource{}
 
-	id, err := source.extractIdFromLink("https://example.com/track/123")
+	id, err := source.ExtractIdFromLink("https://example.com/track/123")
 
 	assert.Error(t, err)
 	assert.Empty(t, id)

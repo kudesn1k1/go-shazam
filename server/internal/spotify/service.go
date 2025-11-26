@@ -46,7 +46,7 @@ func NewSpotifySongMetadataSource(spotifyConfig *Config) (song.SongMetadataSourc
 }
 
 func (s *SpotifySongMetadataSource) GetSongsMetadata(ctx context.Context, id string) (*song.SongMetadata, error) {
-	id, err := s.extractIdFromLink(id)
+	id, err := s.ExtractIdFromLink(id)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (s *SpotifySongMetadataSource) GetSongsMetadata(ctx context.Context, id str
 	}, nil
 }
 
-func (s *SpotifySongMetadataSource) extractIdFromLink(link string) (string, error) {
+func (s *SpotifySongMetadataSource) ExtractIdFromLink(link string) (string, error) {
 	u, err := url.Parse(link)
 	if err != nil {
 		return "", err

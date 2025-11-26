@@ -1,6 +1,10 @@
 package song
 
-import "go.uber.org/fx"
+import (
+	"go-shazam/internal/queue"
+
+	"go.uber.org/fx"
+)
 
 var Module = fx.Module(
 	"song",
@@ -14,4 +18,12 @@ var HttpModule = fx.Module(
 	"song-http",
 	fx.Provide(NewSongHandler),
 	fx.Invoke(RegisterRoutes),
+)
+
+var QueueModule = fx.Module(
+	"song-queue",
+	fx.Provide(NewAddSongTaskHandler),
+	fx.Invoke(func(w queue.WorkerServer, h *AddSongTaskHandler) {
+		w.RegisterServiceHandler(AddSongTaskType, h)
+	}),
 )

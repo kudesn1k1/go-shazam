@@ -15,7 +15,7 @@ func TestSongHandler_Get_InvalidJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	NewSongHandler(router, nil)
+	NewSongHandler(nil)
 
 	req, _ := http.NewRequest(http.MethodPost, "/api/song/add", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -31,7 +31,7 @@ func TestSongHandler_Get_MissingLink(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	NewSongHandler(router, nil)
+	NewSongHandler(nil)
 
 	requestBody := map[string]interface{}{
 		"other_field": "value",

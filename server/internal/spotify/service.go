@@ -3,6 +3,7 @@ package spotify
 import (
 	"context"
 	"errors"
+	"fmt"
 	"go-shazam/internal/song"
 	"net/url"
 	"strings"
@@ -45,20 +46,18 @@ func NewSpotifySongMetadataSource(spotifyConfig *Config) (song.SongMetadataSourc
 	}, nil
 }
 
-func (s *SpotifySongMetadataSource) GetSongsMetadata(ctx context.Context, id string) (*song.SongMetadata, error) {
-	id, err := s.ExtractIdFromLink(id)
-	if err != nil {
-		return nil, err
-	}
-
-	err = s.ensureToken(ctx)
-	if err != nil {
-		return nil, err
+func (s *SpotifySongMetadataSource) GetSongMetadata(ctx context.Context, id string) (*song.SongMetadata, error) {
+	if err := s.ensureToken(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ensure token: %w", err)
 	}
 
 	track, err := s.client.GetTrack(ctx, spotify.ID(id))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get track from Spotify: %w", err)
+	}
+
+	if len(track.Artists) == 0 {
+		return nil, errors.New("track has no artists")
 	}
 
 	return &song.SongMetadata{
@@ -68,14 +67,18 @@ func (s *SpotifySongMetadataSource) GetSongsMetadata(ctx context.Context, id str
 	}, nil
 }
 
-func (s *SpotifySongMetadataSource) ExtractIdFromLink(link string) (string, error) {
+func (s *SpotifySongMetadataSource) ExtractSourceID(link string) (string, error) {
+	return s.extractIDFromLink(link)
+}
+
+func (s *SpotifySongMetadataSource) extractIDFromLink(link string) (string, error) {
 	u, err := url.Parse(link)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse URL: %w", err)
 	}
 
-	if !s.isValidLink(u) {
-		return "", errors.New("invalid link")
+	if !s.isValidHost(u) {
+		return "", errors.New("invalid Spotify link: unsupported host")
 	}
 
 	pathParts := strings.Split(u.Path, "/")
@@ -85,16 +88,21 @@ func (s *SpotifySongMetadataSource) ExtractIdFromLink(link string) (string, erro
 			if index := strings.Index(trackID, "?"); index != -1 {
 				trackID = trackID[:index]
 			}
-
 			return trackID, nil
 		}
 	}
 
-	return "", errors.New("invalid link")
+	return "", errors.New("invalid Spotify link: track ID not found")
 }
 
-func (s *SpotifySongMetadataSource) isValidLink(u *url.URL) bool {
-	return u.Host == "open.spotify.com" || u.Host == "www.open.spotify.com" || u.Host == "spotify.com" || u.Host == "www.spotify.com"
+func (s *SpotifySongMetadataSource) isValidHost(u *url.URL) bool {
+	validHosts := map[string]bool{
+		"open.spotify.com":     true,
+		"www.open.spotify.com": true,
+		"spotify.com":          true,
+		"www.spotify.com":      true,
+	}
+	return validHosts[u.Host]
 }
 
 func (s *SpotifySongMetadataSource) ensureToken(ctx context.Context) error {

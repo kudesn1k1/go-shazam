@@ -10,6 +10,7 @@ type TaskHandler func(ctx context.Context, t *asynq.Task) error
 
 type WorkerServer interface {
 	RegisterHandler(pattern string, handler TaskHandler)
+	RegisterServiceHandler(pattern string, handler asynq.Handler)
 	Run() error
 	Start() error
 	Stop()
@@ -42,6 +43,10 @@ func NewWorkerServer(cfg *Config) WorkerServer {
 
 func (w *workerServer) RegisterHandler(pattern string, handler TaskHandler) {
 	w.mux.HandleFunc(pattern, asynq.HandlerFunc(handler))
+}
+
+func (w *workerServer) RegisterServiceHandler(pattern string, handler asynq.Handler) {
+	w.mux.Handle(pattern, handler)
 }
 
 func (w *workerServer) Run() error {

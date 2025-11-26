@@ -1,6 +1,10 @@
 package song
 
-import "github.com/gin-gonic/gin"
+import (
+	"errors"
+
+	"github.com/gin-gonic/gin"
+)
 
 type SongHandler struct {
 	songService *SongService
@@ -22,11 +26,15 @@ func (h *SongHandler) Add(c *gin.Context) {
 		return
 	}
 
-	meta, err := h.songService.AddSong(c.Request.Context(), songRequest.Link)
+	err := h.songService.EnqueueSong(c.Request.Context(), songRequest.Link)
 	if err != nil {
+		if errors.Is(err, ErrSongTaskAlreadyExists) {
+			c.JSON(400, gin.H{"error": ErrSongTaskAlreadyExists.Error()})
+			return
+		}
 		c.JSON(500, err.Error())
 		return
 	}
 
-	c.JSON(200, gin.H{"meta": meta})
+	c.JSON(200, gin.H{"message": "We will add this song soon"})
 }

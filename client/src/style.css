@@ -200,23 +200,61 @@ body {
 }
 
 .record-btn.is-recording {
-  animation: throb 1.4s ease-in-out infinite;
-  box-shadow: 0 20px 80px rgba(255, 78, 126, 0.6);
   background: radial-gradient(circle, #ff5890 0%, #ff2768 65%);
+  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
 }
 
 .record-btn.is-loading {
   background: radial-gradient(circle, #7d41ff 0%, #4411d8 70%);
 }
 
-@keyframes throb {
-  0%,
-  100% {
-    transform: scale(1);
-  }
+.record-btn-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-  50% {
-    transform: scale(0.96);
+.audio-waves {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.wave {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 88, 144, 0.4);
+  opacity: 0;
+}
+
+.wave-1 {
+  animation: wave-pulse 2s ease-out infinite;
+  animation-delay: 0s;
+}
+
+.wave-2 {
+  animation: wave-pulse 2s ease-out infinite;
+  animation-delay: 0.66s;
+}
+
+.wave-3 {
+  animation: wave-pulse 2s ease-out infinite;
+  animation-delay: 1.33s;
+}
+
+@keyframes wave-pulse {
+  0% {
+    transform: scale(1);
+    opacity: calc(0.5 + 0.5 * var(--audio-level, 0.5));
+    border-color: rgba(255, 88, 144, calc(0.4 + 0.6 * var(--audio-level, 0.5)));
+  }
+  100% {
+    transform: scale(calc(1.6 + 0.4 * var(--audio-level, 0.5)));
+    opacity: 0;
   }
 }
 
@@ -249,6 +287,11 @@ body {
 
 @media (max-width: 640px) {
   .record-btn {
+    width: 180px;
+    height: 180px;
+  }
+
+  .audio-waves {
     width: 180px;
     height: 180px;
   }

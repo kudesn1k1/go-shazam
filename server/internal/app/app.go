@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"go-shazam/internal/auth"
 	"go-shazam/internal/core"
 	"go-shazam/internal/fingerprint"
@@ -49,6 +50,7 @@ func NewWorkerApp() *fx.App {
 		youtube.Module,
 		recognition.Module,
 		queue.Module,
+		song.QueueModule,
 		fx.Invoke(registerWorkerLifecycle),
 	)
 }
@@ -56,9 +58,15 @@ func NewWorkerApp() *fx.App {
 func registerWorkerLifecycle(lc fx.Lifecycle, w queue.WorkerServer) {
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			return w.Start()
+			if err := w.Start(); err != nil {
+				fmt.Printf("Failed to start worker: %v\n", err)
+				return err
+			}
+			fmt.Println("Worker server started successfully")
+			return nil
 		},
 		OnStop: func(ctx context.Context) error {
+			fmt.Println("Stopping worker server...")
 			w.Stop()
 			return nil
 		},

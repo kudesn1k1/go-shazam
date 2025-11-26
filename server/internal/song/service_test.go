@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -14,12 +15,20 @@ type MockSongMetadataSource struct {
 	mock.Mock
 }
 
-func (m *MockSongMetadataSource) GetSongsMetadata(ctx context.Context, link string) (*SongMetadata, error) {
-	args := m.Called(ctx, link)
+func (m *MockSongMetadataSource) GetSongMetadata(ctx context.Context, sourceID string) (*SongMetadata, error) {
+	args := m.Called(ctx, sourceID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*SongMetadata), args.Error(1)
+}
+
+func (m *MockSongMetadataSource) ExtractSourceID(link string) (string, error) {
+	args := m.Called(link)
+	if args.Get(0) == nil {
+		return "", args.Error(1)
+	}
+	return args.Get(0).(string), args.Error(1)
 }
 
 type MockSongDownloader struct {
@@ -59,8 +68,9 @@ func (m *MockSongRepository) FindByTitleAndArtist(ctx context.Context, title str
 	return args.Get(0).(*SongEntity), args.Error(1)
 }
 
-func TestSongService_GetSongsMetadata_Success(t *testing.T) {
+func TestSongService_GetSongMetadata_Success(t *testing.T) {
 	mockMetadataSource := new(MockSongMetadataSource)
+	mockDownloader := new(MockSongDownloader)
 
 	expectedMetadata := &SongMetadata{
 		Title:      "Test Song",
@@ -68,38 +78,76 @@ func TestSongService_GetSongsMetadata_Success(t *testing.T) {
 		DurationMs: 180000,
 	}
 
-	mockDownloader := new(MockSongDownloader)
+	mockMetadataSource.On("GetSongMetadata", mock.Anything, "spotify-id").Return(expectedMetadata, nil)
 
-	mockMetadataSource.On("GetSongsMetadata", mock.Anything, "spotify-link").Return(expectedMetadata, nil)
+	service := NewSongService(mockMetadataSource, mockDownloader, nil, nil, nil, nil)
 
-	mockRepo := new(MockSongRepository)
-	mockRepo.On("Save", mock.Anything, mock.Anything).Return(nil)
-	mockRepo.On("FindByID", mock.Anything, mock.Anything).Return(nil, nil)
-	mockRepo.On("FindByTitleAndArtist", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
-
-	service := NewSongService(mockMetadataSource, mockDownloader, mockRepo, nil, nil)
-
-	result, err := service.GetSongsMetadata(context.Background(), "spotify-link")
+	result, err := service.GetSongMetadata(context.Background(), "spotify-id")
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedMetadata, result)
 	mockMetadataSource.AssertExpectations(t)
 }
 
-func TestSongService_GetSongsMetadata_MetadataSourceError(t *testing.T) {
+func TestSongService_GetSongMetadata_Error(t *testing.T) {
 	mockMetadataSource := new(MockSongMetadataSource)
 	mockDownloader := new(MockSongDownloader)
 
 	expectedError := errors.New("failed to get metadata")
-	mockMetadataSource.On("GetSongsMetadata", mock.Anything, "invalid-link").Return(nil, expectedError)
+	mockMetadataSource.On("GetSongMetadata", mock.Anything, "invalid-id").Return(nil, expectedError)
 
-	service := NewSongService(mockMetadataSource, mockDownloader, nil, nil, nil)
+	service := NewSongService(mockMetadataSource, mockDownloader, nil, nil, nil, nil)
 
-	result, err := service.GetSongsMetadata(context.Background(), "invalid-link")
+	result, err := service.GetSongMetadata(context.Background(), "invalid-id")
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
 	mockMetadataSource.AssertExpectations(t)
-	mockDownloader.AssertNotCalled(t, "DownloadSong")
+}
+
+type MockQueueService struct {
+	mock.Mock
+}
+
+func (m *MockQueueService) Enqueue(taskType string, payload []byte, opts ...asynq.Option) (*asynq.TaskInfo, error) {
+	args := m.Called(taskType, payload)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*asynq.TaskInfo), args.Error(1)
+}
+
+func (m *MockQueueService) Close() error {
+	return nil
+}
+
+func TestSongService_EnqueueSong_Success(t *testing.T) {
+	mockMetadataSource := new(MockSongMetadataSource)
+	mockQueue := new(MockQueueService)
+
+	mockMetadataSource.On("ExtractSourceID", "https://open.spotify.com/track/123").Return("123", nil)
+	mockQueue.On("Enqueue", AddSongTaskType, mock.Anything).Return(nil, nil)
+
+	service := NewSongService(mockMetadataSource, nil, nil, nil, nil, mockQueue)
+
+	err := service.EnqueueSong(context.Background(), "https://open.spotify.com/track/123")
+
+	assert.NoError(t, err)
+	mockMetadataSource.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
+func TestSongService_EnqueueSong_InvalidLink(t *testing.T) {
+	mockMetadataSource := new(MockSongMetadataSource)
+
+	mockMetadataSource.On("ExtractSourceID", "invalid-link").Return("", errors.New("invalid link"))
+
+	service := NewSongService(mockMetadataSource, nil, nil, nil, nil, nil)
+
+	err := service.EnqueueSong(context.Background(), "invalid-link")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to extract source ID")
+	mockMetadataSource.AssertExpectations(t)
 }

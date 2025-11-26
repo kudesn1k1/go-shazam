@@ -70,7 +70,7 @@ func ExtractPeaks(fragments []audio.ProcessedFragment, sampleRate int) []Peak {
 				continue
 			}
 
-			// Sort by magnitude and take only the strongest peak
+			// Sort by magnitude
 			sort.Slice(localMaxima, func(i, j int) bool {
 				return localMaxima[i].magnitude > localMaxima[j].magnitude
 			})

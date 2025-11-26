@@ -38,16 +38,33 @@
         <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
       </section>
 
-      <button
-        class="record-btn"
-        :class="{ 'is-recording': isRecording, 'is-loading': isSending }"
-        @click="toggleRecording"
-        :disabled="isSending"
-        aria-live="polite"
-      >
-        <span>{{ recordButtonLabel }}</span>
-        <small v-if="isRecording">Tap to stop</small>
-      </button>
+      <div class="record-btn-wrapper">
+        <div 
+          v-if="isRecording" 
+          class="audio-waves"
+          :style="{
+            '--audio-level': audioLevel
+          }"
+        >
+          <div class="wave wave-1"></div>
+          <div class="wave wave-2"></div>
+          <div class="wave wave-3"></div>
+        </div>
+        <button
+          class="record-btn"
+          :class="{ 'is-recording': isRecording, 'is-loading': isSending }"
+          :style="isRecording ? {
+            transform: `scale(${1 + audioLevel * 0.15})`,
+            boxShadow: `0 20px ${80 + audioLevel * 40}px rgba(255, 78, 126, ${0.6 + audioLevel * 0.4})`
+          } : {}"
+          @click="toggleRecording"
+          :disabled="isSending"
+          aria-live="polite"
+        >
+          <span>{{ recordButtonLabel }}</span>
+          <small v-if="isRecording">Tap to stop</small>
+        </button>
+      </div>
 
       <p class="hint">Tip: hold your device close to the speaker for the best results.</p>
     </main>
@@ -89,6 +106,7 @@ const isSending = ref(false);
 const statusMessage = ref('Tap to listen for music around you');
 const errorMessage = ref('');
 const detectedTrack = ref<RecognitionResult | null>(null);
+const audioLevel = ref(0);
 
 const isAuthModalOpen = ref(false);
 const authMode = ref<'login' | 'register'>('login');
@@ -150,6 +168,8 @@ const resetRecorder = () => {
     clearTimeout(autoStopTimer);
     autoStopTimer = null;
   }
+  
+  audioLevel.value = 0;
 };
 
 const stopRecording = () => {
@@ -158,6 +178,7 @@ const stopRecording = () => {
   }
 
   isRecording.value = false;
+  audioLevel.value = 0;
   statusMessage.value = 'Processing audio…';
   isSending.value = true;
 
@@ -264,6 +285,15 @@ const startRecording = async () => {
     processor.onaudioprocess = (e) => {
       if (!isRecording.value) return;
       const inputData = e.inputBuffer.getChannelData(0);
+      
+      let sum = 0;
+      for (let i = 0; i < inputData.length; i++) {
+        sum += inputData[i] * inputData[i];
+      }
+      const rms = Math.sqrt(sum / inputData.length);
+      const normalizedLevel = Math.min(rms * 3, 1);
+      audioLevel.value = audioLevel.value * 0.7 + normalizedLevel * 0.3;
+      
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(inputData);
       }

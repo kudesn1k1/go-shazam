@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	TimeBinResolution = 20   // 50ms bins (1/0.05)
-	MinAbsoluteScore  = 5    // Minimum absolute score to consider a match
-	MinScoreRatio     = 0.01 // Minimum score as ratio of sample hashes (1%)
+	TimeBinResolution = 20    // 50ms bins (1/0.05)
+	MinAbsoluteScore  = 5     // Minimum absolute score to consider a match
+	MinScoreRatio     = 0.015 // Minimum score as ratio of sample hashes (1.5%)
 )
 
 type RecognitionService struct {

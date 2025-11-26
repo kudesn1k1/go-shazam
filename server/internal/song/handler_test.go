@@ -11,27 +11,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSongHandler_Get_InvalidJSON(t *testing.T) {
+func setupTestRouter(handler *SongHandler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
-
 	router := gin.New()
-	NewSongHandler(router, nil)
+	RegisterRoutes(router, handler)
+	return router
+}
+
+func TestSongHandler_Add_InvalidJSON(t *testing.T) {
+	handler := NewSongHandler(nil)
+	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequest(http.MethodPost, "/api/song/add", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
-
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 }
 
-func TestSongHandler_Get_MissingLink(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
-	NewSongHandler(router, nil)
+func TestSongHandler_Add_MissingLink(t *testing.T) {
+	handler := NewSongHandler(nil)
+	router := setupTestRouter(handler)
 
 	requestBody := map[string]interface{}{
 		"other_field": "value",
@@ -42,7 +44,6 @@ func TestSongHandler_Get_MissingLink(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
-
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)

@@ -2,19 +2,26 @@ package song
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"go-shazam/internal/audio"
 	"go-shazam/internal/core/db"
 	"go-shazam/internal/fingerprint"
+	"go-shazam/internal/queue"
 	"go-shazam/internal/utils/converter"
 	"os"
 	"path/filepath"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 )
 
+var ErrSongTaskAlreadyExists = errors.New("Song is already being processed")
+
 type SongMetadataSource interface {
-	GetSongsMetadata(ctx context.Context, link string) (*SongMetadata, error)
+	GetSongMetadata(ctx context.Context, sourceID string) (*SongMetadata, error)
+	ExtractSourceID(link string) (string, error)
 }
 
 type SongDownloader interface {
@@ -27,6 +34,7 @@ type SongService struct {
 	songRepository     SongRepositoryInterface
 	fingerprintService *fingerprint.FingerprintService
 	transactionManager *db.TransactionManager
+	queue              queue.QueueService
 }
 
 func NewSongService(
@@ -35,6 +43,7 @@ func NewSongService(
 	songRepository SongRepositoryInterface,
 	fingerprintService *fingerprint.FingerprintService,
 	transactionManager *db.TransactionManager,
+	queue queue.QueueService,
 ) *SongService {
 	return &SongService{
 		songMetadataSource: songMetadataSource,
@@ -42,19 +51,39 @@ func NewSongService(
 		songRepository:     songRepository,
 		fingerprintService: fingerprintService,
 		transactionManager: transactionManager,
+		queue:              queue,
 	}
 }
 
-func (s *SongService) GetSongsMetadata(ctx context.Context, link string) (*SongMetadata, error) {
-	songMeta, err := s.songMetadataSource.GetSongsMetadata(ctx, link)
-
-	return songMeta, err
+func (s *SongService) GetSongMetadata(ctx context.Context, sourceID string) (*SongMetadata, error) {
+	return s.songMetadataSource.GetSongMetadata(ctx, sourceID)
 }
 
-func (s *SongService) AddSong(ctx context.Context, link string) (*SongMetadata, error) {
-	songMeta, err := s.songMetadataSource.GetSongsMetadata(ctx, link)
+func (s *SongService) EnqueueSong(ctx context.Context, link string) error {
+	sourceID, err := s.songMetadataSource.ExtractSourceID(link)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to extract source ID from link: %w", err)
+	}
+
+	payload, err := json.Marshal(AddSongTaskPayload{ID: sourceID})
+	if err != nil {
+		return fmt.Errorf("failed to marshal task payload: %w", err)
+	}
+
+	if _, err = s.queue.Enqueue(AddSongTaskType, payload, asynq.TaskID(sourceID)); err != nil {
+		if errors.Is(err, asynq.ErrTaskIDConflict) {
+			return ErrSongTaskAlreadyExists
+		}
+		return fmt.Errorf("failed to enqueue song task: %w", err)
+	}
+
+	return nil
+}
+
+func (s *SongService) AddSong(ctx context.Context, sourceID string) (*SongMetadata, error) {
+	songMeta, err := s.songMetadataSource.GetSongMetadata(ctx, sourceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get song metadata: %w", err)
 	}
 
 	existingSong, err := s.songRepository.FindByTitleAndArtist(ctx, songMeta.Title, songMeta.Artist)
@@ -71,23 +100,26 @@ func (s *SongService) AddSong(ctx context.Context, link string) (*SongMetadata, 
 
 	downloadedSong, err := s.songDownloader.DownloadSong(ctx, songMeta, os.TempDir())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to download song: %w", err)
 	}
 
-	// 1. Convert to WAV
+	// Convert to WAV
 	fullPath := filepath.Join(downloadedSong.Path, downloadedSong.Filename)
+	defer os.Remove(fullPath) // Cleanup downloaded file
+
 	wavPath, err := converter.ConvertToWav(fullPath, audio.TargetSampleRate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert to wav: %w", err)
 	}
+	defer os.Remove(wavPath) // Cleanup converted WAV file
 
-	// 2. Load WAV
+	// Load WAV
 	samples, sampleRate, err := audio.LoadWav(wavPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wav: %w", err)
 	}
 
-	// 3. Process (FFT) (CPU bound - do outside transaction)
+	// Process audio (FFT) - CPU bound, done outside transaction
 	fragments, err := audio.ProcessAudio(samples, sampleRate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process audio: %w", err)

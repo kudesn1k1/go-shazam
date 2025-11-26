@@ -22,11 +22,11 @@ func (h *SongHandler) Add(c *gin.Context) {
 		return
 	}
 
-	meta, err := h.songService.AddSong(c.Request.Context(), songRequest.Link)
+	err := h.songService.EnqueueSong(c.Request.Context(), songRequest.Link)
 	if err != nil {
 		c.JSON(500, err.Error())
 		return
 	}
 
-	c.JSON(200, gin.H{"meta": meta})
+	c.JSON(200, gin.H{"message": "We will add this song soon"})
 }

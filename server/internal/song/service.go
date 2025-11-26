@@ -3,6 +3,7 @@ package song
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go-shazam/internal/audio"
 	"go-shazam/internal/core/db"
@@ -13,7 +14,10 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 )
+
+var ErrSongTaskAlreadyExists = errors.New("Song is already being processed")
 
 type SongMetadataSource interface {
 	GetSongMetadata(ctx context.Context, sourceID string) (*SongMetadata, error)
@@ -66,7 +70,10 @@ func (s *SongService) EnqueueSong(ctx context.Context, link string) error {
 		return fmt.Errorf("failed to marshal task payload: %w", err)
 	}
 
-	if _, err = s.queue.Enqueue(AddSongTaskType, payload); err != nil {
+	if _, err = s.queue.Enqueue(AddSongTaskType, payload, asynq.TaskID(sourceID)); err != nil {
+		if errors.Is(err, asynq.ErrTaskIDConflict) {
+			return ErrSongTaskAlreadyExists
+		}
 		return fmt.Errorf("failed to enqueue song task: %w", err)
 	}
 

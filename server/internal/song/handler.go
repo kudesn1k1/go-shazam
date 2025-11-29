@@ -2,6 +2,7 @@ package song
 
 import (
 	"errors"
+	"go-shazam/internal/auth"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,8 +15,9 @@ func NewSongHandler(songService *SongService) *SongHandler {
 	return &SongHandler{songService: songService}
 }
 
-func RegisterRoutes(r *gin.Engine, h *SongHandler) {
-	r.POST("/api/song/add", h.Add)
+func RegisterRoutes(r *gin.Engine, h *SongHandler, jwtService *auth.JWTService) {
+	authMiddleware := auth.AuthMiddleware(jwtService)
+	r.POST("/api/song/add", authMiddleware, h.Add)
 }
 
 func (h *SongHandler) Add(c *gin.Context) {

@@ -66,6 +66,8 @@
         </button>
       </div>
 
+      <AddSongForm @require-auth="openAuthModal('login')" @toast="showToast" />
+
       <p class="hint">Tip: hold your device close to the speaker for the best results.</p>
     </main>
 
@@ -88,6 +90,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import AuthModal from './components/AuthModal.vue';
+import AddSongForm from './components/AddSongForm.vue';
 import { useAuth } from './composables/useAuth';
 
 type RecognitionResult = {
@@ -122,6 +125,7 @@ const {
   register,
   logout,
   initialize: initAuth,
+  getAccessToken,
 } = useAuth();
 
 let audioContext: AudioContext | null = null;

@@ -41,8 +41,8 @@ const handleAddSong = async () => {
     return;
   }
 
-  // Basic Spotify link validation
-  if (!addSongLink.value.includes('spotify.com')) {
+  const url = new URL(addSongLink.value);
+  if (!url.hostname.includes('spotify.com')) {
     emit('toast', 'Please enter a valid Spotify link', 'error');
     return;
   }

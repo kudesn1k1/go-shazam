@@ -31,7 +31,6 @@ func NewTransactionManager(db *sqlx.DB) *TransactionManager {
 func NewDB(lc fx.Lifecycle) *sqlx.DB {
 	config := LoadDBConfig()
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", config.Host, config.Port, config.User, config.Password, config.Database)
-	fmt.Println(dsn)
 	db := sqlx.MustOpen("pgx", dsn)
 
 	lc.Append(fx.Hook{

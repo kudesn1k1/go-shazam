@@ -28,6 +28,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000
 const addSongLink = ref('');
 const isAddingSong = ref(false);
 
+const allowedHosts = ['spotify.com', 'www.spotify.com', 'open.spotify.com', 'www.open.spotify.com'];
+
 const { isAuthenticated, getAccessToken } = useAuth();
 
 const handleAddSong = async () => {
@@ -42,7 +44,7 @@ const handleAddSong = async () => {
   }
 
   const url = new URL(addSongLink.value);
-  if (!url.hostname.includes('spotify.com')) {
+  if (!allowedHosts.includes(url.hostname)) {
     emit('toast', 'Please enter a valid Spotify link', 'error');
     return;
   }

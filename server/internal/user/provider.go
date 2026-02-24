@@ -8,7 +8,6 @@ var Module = fx.Module(
 	"user",
 	fx.Provide(
 		NewUserRepository,
-		NewRoleRepository,
 		NewUserService,
 		NewCryptoService,
 	),

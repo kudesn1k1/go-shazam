@@ -24,8 +24,7 @@ func RegisterRoutes(r *gin.Engine, h *SongHandler, jwtService *auth.JWTService) 
 	authMiddleware := auth.AuthMiddleware(jwtService)
 	adminMiddleware := auth.RoleMiddleware("admin")
 
-	//TODO: Why use admin middleware here?
-	r.POST("/api/song/add", authMiddleware, adminMiddleware, h.Add)
+	r.POST("/api/song/add", authMiddleware, h.Add)
 
 	userSongGroup := r.Group("/api/user")
 	userSongGroup.Use(authMiddleware)

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"go-shazam/internal/auth"
+	"go-shazam/internal/core/db"
+	"go-shazam/internal/role"
 
 	"github.com/google/uuid"
 )
@@ -16,23 +18,26 @@ var (
 )
 
 type UserService struct {
-	userRepository UserRepositoryInterface
-	roleRepository RoleRepositoryInterface
-	cryptoService  *CryptoService
-	jwtService     *auth.JWTService
+	userRepository     UserRepositoryInterface
+	roleService        *role.Service
+	cryptoService      *CryptoService
+	jwtService         *auth.JWTService
+	transactionManager *db.TransactionManager
 }
 
 func NewUserService(
 	userRepository UserRepositoryInterface,
-	roleRepository RoleRepositoryInterface,
+	roleService *role.Service,
 	cryptoService *CryptoService,
 	jwtService *auth.JWTService,
+	transactionManager *db.TransactionManager,
 ) *UserService {
 	return &UserService{
-		userRepository: userRepository,
-		roleRepository: roleRepository,
-		cryptoService:  cryptoService,
-		jwtService:     jwtService,
+		userRepository:     userRepository,
+		roleService:        roleService,
+		cryptoService:      cryptoService,
+		jwtService:         jwtService,
+		transactionManager: transactionManager,
 	}
 }
 
@@ -72,21 +77,17 @@ func (s *UserService) Register(ctx context.Context, dto *CreateUser) (*InternalT
 		UpdatedAt:      now,
 	}
 
-	if err := s.userRepository.Create(ctx, user); err != nil {
-		return nil, err
-	}
-
-	//TODO add transaction
-	defaultRole, err := s.roleRepository.FindRoleByName(ctx, "user")
+	_, err = db.Transactional(ctx, s.transactionManager, func(txCtx context.Context) (struct{}, error) {
+		if err := s.userRepository.Create(txCtx, user); err != nil {
+			return struct{}{}, err
+		}
+		return struct{}{}, s.roleService.AssignDefaultRole(txCtx, userID)
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.roleRepository.AssignRole(ctx, userID, defaultRole.ID); err != nil {
-		return nil, err
-	}
-
-	tokenPair, err := s.jwtService.GenerateTokenPair(userID, []string{"user"})
+	tokenPair, err := s.jwtService.GenerateTokenPair(userID, []string{role.RoleUser.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -113,17 +114,12 @@ func (s *UserService) Login(ctx context.Context, dto *LoginRequest) (*InternalTo
 		return nil, ErrInvalidCredentials
 	}
 
-	roles, err := s.roleRepository.FindRolesByUserID(ctx, user.ID)
+	roles, err := s.roleService.GetUserRoles(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	roleNames := make([]string, len(roles))
-	for i, r := range roles {
-		roleNames[i] = r.Name
-	}
-
-	tokenPair, err := s.jwtService.GenerateTokenPair(user.ID, roleNames)
+	tokenPair, err := s.jwtService.GenerateTokenPair(user.ID, role.RolesToStrings(roles))
 	if err != nil {
 		return nil, err
 	}
@@ -146,17 +142,12 @@ func (s *UserService) RefreshTokens(ctx context.Context, refreshToken string) (*
 		return nil, err
 	}
 
-	roles, err := s.roleRepository.FindRolesByUserID(ctx, claims.UserID)
+	roles, err := s.roleService.GetUserRoles(ctx, claims.UserID)
 	if err != nil {
 		return nil, err
 	}
 
-	roleNames := make([]string, len(roles))
-	for i, r := range roles {
-		roleNames[i] = r.Name
-	}
-
-	tokenPair, err := s.jwtService.GenerateTokenPair(claims.UserID, roleNames)
+	tokenPair, err := s.jwtService.GenerateTokenPair(claims.UserID, role.RolesToStrings(roles))
 	if err != nil {
 		return nil, err
 	}
@@ -179,20 +170,15 @@ func (s *UserService) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*Us
 		return nil, err
 	}
 
-	roles, err := s.roleRepository.FindRolesByUserID(ctx, userID)
+	roles, err := s.roleService.GetUserRoles(ctx, userID)
 	if err != nil {
 		return nil, err
-	}
-
-	roleNames := make([]string, len(roles))
-	for i, r := range roles {
-		roleNames[i] = r.Name
 	}
 
 	return &UserResponse{
 		ID:        user.ID.String(),
 		Email:     email,
-		Roles:     roleNames,
+		Roles:     role.RolesToStrings(roles),
 		CreatedAt: user.CreatedAt.Format(time.RFC3339),
 	}, nil
 }
@@ -209,27 +195,27 @@ func (s *UserService) GetAllUsers(ctx context.Context, page, limit int) ([]UserR
 		return nil, 0, err
 	}
 
+	userIDs := make([]uuid.UUID, len(users))
+	for i, u := range users {
+		userIDs[i] = u.ID
+	}
+
+	rolesMap, err := s.roleService.GetUsersRoles(ctx, userIDs)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	responses := make([]UserResponse, len(users))
 	for i, u := range users {
 		email, err := s.cryptoService.DecryptEmail(u.Email)
 		if err != nil {
 			return nil, 0, err
 		}
-		//TODO: Fix N+1 query
-		roles, err := s.roleRepository.FindRolesByUserID(ctx, u.ID)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		roleNames := make([]string, len(roles))
-		for j, r := range roles {
-			roleNames[j] = r.Name
-		}
 
 		responses[i] = UserResponse{
 			ID:        u.ID.String(),
 			Email:     email,
-			Roles:     roleNames,
+			Roles:     role.RolesToStrings(rolesMap[u.ID]),
 			CreatedAt: u.CreatedAt.Format(time.RFC3339),
 		}
 	}
@@ -248,49 +234,23 @@ func (s *UserService) GetUserByID(ctx context.Context, userID uuid.UUID) (*UserR
 		return nil, err
 	}
 
-	roles, err := s.roleRepository.FindRolesByUserID(ctx, userID)
+	roles, err := s.roleService.GetUserRoles(ctx, userID)
 	if err != nil {
 		return nil, err
-	}
-
-	roleNames := make([]string, len(roles))
-	for i, r := range roles {
-		roleNames[i] = r.Name
 	}
 
 	return &UserResponse{
 		ID:        user.ID.String(),
 		Email:     email,
-		Roles:     roleNames,
+		Roles:     role.RolesToStrings(roles),
 		CreatedAt: user.CreatedAt.Format(time.RFC3339),
 	}, nil
 }
 
 func (s *UserService) UpdateUserRoles(ctx context.Context, userID uuid.UUID, roleNames []string) error {
-	allRoles, err := s.roleRepository.FindAll(ctx)
-	if err != nil {
-		return err
+	roles := make([]role.Role, len(roleNames))
+	for i, name := range roleNames {
+		roles[i] = role.Role(name)
 	}
-
-	roleMap := make(map[string]int, len(allRoles))
-	for _, r := range allRoles {
-		roleMap[r.Name] = r.ID
-	}
-
-	if err := s.roleRepository.RemoveAllUserRoles(ctx, userID); err != nil {
-		return err
-	}
-
-	for _, name := range roleNames {
-		roleID, ok := roleMap[name]
-		if !ok {
-			continue
-		}
-		//TODO: Fix N+1 query using bulk insert
-		if err := s.roleRepository.AssignRole(ctx, userID, roleID); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return s.roleService.UpdateUserRoles(ctx, userID, roles)
 }

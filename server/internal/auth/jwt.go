@@ -23,6 +23,7 @@ const (
 type Claims struct {
 	UserID    uuid.UUID `json:"user_id"`
 	TokenType TokenType `json:"token_type"`
+	Roles     []string  `json:"roles"`
 	jwt.RegisteredClaims
 }
 
@@ -42,13 +43,13 @@ func NewJWTService(config *Config) *JWTService {
 }
 
 // GenerateTokenPair creates both access and refresh tokens
-func (s *JWTService) GenerateTokenPair(userID uuid.UUID) (*TokenPair, error) {
-	accessToken, accessExp, err := s.generateToken(userID, AccessToken, s.config.AccessTokenSecret, s.config.AccessTokenTTL)
+func (s *JWTService) GenerateTokenPair(userID uuid.UUID, roles []string) (*TokenPair, error) {
+	accessToken, accessExp, err := s.generateToken(userID, roles, AccessToken, s.config.AccessTokenSecret, s.config.AccessTokenTTL)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, refreshExp, err := s.generateToken(userID, RefreshToken, s.config.RefreshTokenSecret, s.config.RefreshTokenTTL)
+	refreshToken, refreshExp, err := s.generateToken(userID, roles, RefreshToken, s.config.RefreshTokenSecret, s.config.RefreshTokenTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -61,13 +62,14 @@ func (s *JWTService) GenerateTokenPair(userID uuid.UUID) (*TokenPair, error) {
 	}, nil
 }
 
-func (s *JWTService) generateToken(userID uuid.UUID, tokenType TokenType, secret string, ttl time.Duration) (string, time.Time, error) {
+func (s *JWTService) generateToken(userID uuid.UUID, roles []string, tokenType TokenType, secret string, ttl time.Duration) (string, time.Time, error) {
 	now := time.Now()
 	expiresAt := now.Add(ttl)
 
 	claims := &Claims{
 		UserID:    userID,
 		TokenType: tokenType,
+		Roles:     roles,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),

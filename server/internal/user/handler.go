@@ -6,8 +6,10 @@ import (
 
 	"go-shazam/internal/auth"
 	"go-shazam/internal/logger"
+	"go-shazam/internal/utils/pagination"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 const (
@@ -36,11 +38,18 @@ func RegisterRoutes(r *gin.Engine, h *UserHandler, jwtService *auth.JWTService) 
 		authGroup.POST("/logout", h.Logout)
 	}
 
-	// Protected routes
 	userGroup := r.Group("/api/user")
 	userGroup.Use(auth.AuthMiddleware(jwtService))
 	{
 		userGroup.GET("/me", h.GetCurrentUser)
+	}
+
+	adminGroup := r.Group("/api/users")
+	adminGroup.Use(auth.AuthMiddleware(jwtService), auth.RoleMiddleware("admin"))
+	{
+		adminGroup.GET("", h.ListUsers)
+		adminGroup.GET("/:id", h.GetUser)
+		adminGroup.POST("/:id/roles", h.UpdateUserRoles)
 	}
 }
 
@@ -188,4 +197,69 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) ListUsers(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
+
+	p := pagination.ParseParams(c)
+	users, total, err := h.userService.GetAllUsers(c.Request.Context(), p.Page, p.Limit)
+	if err != nil {
+		log.Error("failed to list users", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list users"})
+		return
+	}
+
+	c.JSON(http.StatusOK, pagination.NewResponse(users, total, p.Page, p.Limit))
+}
+
+func (h *UserHandler) GetUser(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
+
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	user, err := h.userService.GetUserByID(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		log.Error("failed to get user", "error", err, "user_id", userID)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) UpdateUserRoles(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
+
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	var req UpdateRolesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.userService.UpdateUserRoles(c.Request.Context(), userID, req.Roles); err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		log.Error("failed to update user roles", "error", err, "user_id", userID)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update roles"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "roles updated"})
 }

@@ -24,6 +24,12 @@ type InternalTokenResponse struct {
 }
 
 type UserResponse struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
+	ID        string   `json:"id"`
+	Email     string   `json:"email"`
+	Roles     []string `json:"roles"`
+	CreatedAt string   `json:"created_at"`
+}
+
+type UpdateRolesRequest struct {
+	Roles []string `json:"roles" binding:"required"`
 }

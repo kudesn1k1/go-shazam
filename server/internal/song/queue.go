@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 )
 
@@ -13,7 +14,8 @@ const (
 )
 
 type AddSongTaskPayload struct {
-	ID string `json:"id"`
+	ID         string  `json:"id"`
+	UploadedBy *string `json:"uploaded_by,omitempty"`
 }
 
 type AddSongTaskHandler struct {
@@ -35,7 +37,15 @@ func (h *AddSongTaskHandler) ProcessTask(ctx context.Context, task *asynq.Task) 
 
 	fmt.Printf("[Worker] Processing song with ID: %s\n", payload.ID)
 
-	songMeta, err := h.songService.AddSong(ctx, payload.ID)
+	var uploadedBy *uuid.UUID
+	if payload.UploadedBy != nil {
+		parsed, err := uuid.Parse(*payload.UploadedBy)
+		if err == nil {
+			uploadedBy = &parsed
+		}
+	}
+
+	songMeta, err := h.songService.AddSong(ctx, payload.ID, uploadedBy)
 	if err != nil {
 		fmt.Printf("[Worker] Failed to add song: %v\n", err)
 		return fmt.Errorf("failed to add song: %w", err)

@@ -16,6 +16,8 @@ type UserRepositoryInterface interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*UserEntity, error)
 	FindByEmailHash(ctx context.Context, emailHash string) (*UserEntity, error)
 	ExistsByEmailHash(ctx context.Context, emailHash string) (bool, error)
+	FindAll(ctx context.Context, limit, offset int) ([]UserEntity, error)
+	Count(ctx context.Context) (int, error)
 }
 
 type UserRepository struct {
@@ -66,4 +68,22 @@ func (r *UserRepository) ExistsByEmailHash(ctx context.Context, emailHash string
 		return false, err
 	}
 	return exists, nil
+}
+
+func (r *UserRepository) FindAll(ctx context.Context, limit, offset int) ([]UserEntity, error) {
+	query := "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+	var users []UserEntity
+	if err := r.db.Connection(ctx).SelectContext(ctx, &users, query, limit, offset); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func (r *UserRepository) Count(ctx context.Context) (int, error) {
+	query := "SELECT COUNT(*) FROM users"
+	var count int
+	if err := r.db.Connection(ctx).GetContext(ctx, &count, query); err != nil {
+		return 0, err
+	}
+	return count, nil
 }

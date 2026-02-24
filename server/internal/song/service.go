@@ -59,13 +59,50 @@ func (s *SongService) GetSongMetadata(ctx context.Context, sourceID string) (*So
 	return s.songMetadataSource.GetSongMetadata(ctx, sourceID)
 }
 
-func (s *SongService) EnqueueSong(ctx context.Context, link string) error {
+func (s *SongService) GetUserSongs(ctx context.Context, userID uuid.UUID, page, limit int) ([]SongResponse, int, error) {
+	offset := (page - 1) * limit
+	songs, err := s.songRepository.FindByUploadedBy(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	//TODO: Consider using single query to get total and songs
+	total, err := s.songRepository.CountByUploadedBy(ctx, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	responses := make([]SongResponse, len(songs))
+	for i, s := range songs {
+		resp := SongResponse{
+			ID:       s.ID.String(),
+			Title:    s.Title,
+			Artist:   s.Artist,
+			Duration: s.Duration,
+			SourceID: s.SourceID,
+		}
+		if s.UploadedBy != nil {
+			str := s.UploadedBy.String()
+			resp.UploadedBy = &str
+		}
+		responses[i] = resp
+	}
+
+	return responses, total, nil
+}
+
+func (s *SongService) EnqueueSong(ctx context.Context, link string, uploadedBy *uuid.UUID) error {
 	sourceID, err := s.songMetadataSource.ExtractSourceID(link)
 	if err != nil {
 		return fmt.Errorf("failed to extract source ID from link: %w", err)
 	}
 
-	payload, err := json.Marshal(AddSongTaskPayload{ID: sourceID})
+	taskPayload := AddSongTaskPayload{ID: sourceID}
+	if uploadedBy != nil {
+		str := uploadedBy.String()
+		taskPayload.UploadedBy = &str
+	}
+
+	payload, err := json.Marshal(taskPayload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal task payload: %w", err)
 	}
@@ -80,7 +117,7 @@ func (s *SongService) EnqueueSong(ctx context.Context, link string) error {
 	return nil
 }
 
-func (s *SongService) AddSong(ctx context.Context, sourceID string) (*SongMetadata, error) {
+func (s *SongService) AddSong(ctx context.Context, sourceID string, uploadedBy *uuid.UUID) (*SongMetadata, error) {
 	songMeta, err := s.songMetadataSource.GetSongMetadata(ctx, sourceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get song metadata: %w", err)
@@ -131,11 +168,12 @@ func (s *SongService) AddSong(ctx context.Context, sourceID string) (*SongMetada
 	}
 
 	songEntity := &SongEntity{
-		ID:       songID,
-		Title:    songMeta.Title,
-		Artist:   songMeta.Artist,
-		Duration: songMeta.DurationMs,
-		SourceID: downloadedSong.SourceID,
+		ID:         songID,
+		Title:      songMeta.Title,
+		Artist:     songMeta.Artist,
+		Duration:   songMeta.DurationMs,
+		SourceID:   downloadedSong.SourceID,
+		UploadedBy: uploadedBy,
 	}
 
 	// Calculate fingerprints (CPU bound)

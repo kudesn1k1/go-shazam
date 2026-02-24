@@ -7,6 +7,8 @@ import { computed, readonly, ref, type Ref } from 'vue';
 interface User {
   id: string;
   email: string;
+  roles: string[];
+  created_at: string;
 }
 
 interface TokenResponse {
@@ -53,6 +55,10 @@ let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isAuthenticated = computed(() => {
   return accessToken.value !== null && user.value !== null;
+});
+
+const isAdmin = computed(() => {
+  return user.value?.roles?.includes('admin') ?? false;
 });
 
 // =============================================================================
@@ -231,13 +237,12 @@ function getAccessToken(): string | null {
 
 export function useAuth() {
   return {
-    // State (readonly to prevent external mutations)
     user: readonly(user),
     isLoading: readonly(isLoading),
     error: readonly(error),
     isAuthenticated,
+    isAdmin,
 
-    // Actions
     register,
     login,
     logout,
@@ -247,5 +252,4 @@ export function useAuth() {
   };
 }
 
-// Re-export types
 export type { User, AuthState };

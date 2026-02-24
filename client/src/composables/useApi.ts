@@ -76,6 +76,16 @@ export function useApi() {
     return authFetch<PaginatedResponse<Song>>(`/api/users/${id}/songs?page=${page}&limit=${limit}`);
   }
 
+  function getAllSongs(page = 1, limit = 20) {
+    return authFetch<PaginatedResponse<Song>>(`/api/songs?page=${page}&limit=${limit}`);
+  }
+
+  function deleteSong(id: string) {
+    return authFetch(`/api/songs/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   function updateUserRoles(id: string, roles: string[]) {
     return authFetch(`/api/users/${id}/roles`, {
       method: 'POST',
@@ -83,5 +93,5 @@ export function useApi() {
     });
   }
 
-  return { getMySongs, getUsers, getUserByID, getUserSongs, updateUserRoles };
+  return { getMySongs, getUsers, getUserByID, getUserSongs, getAllSongs, deleteSong, updateUserRoles };
 }

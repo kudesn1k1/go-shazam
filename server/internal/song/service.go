@@ -90,6 +90,52 @@ func (s *SongService) GetUserSongs(ctx context.Context, userID uuid.UUID, page, 
 	return responses, total, nil
 }
 
+func (s *SongService) GetAllSongs(ctx context.Context, page, limit int) ([]SongResponse, int, error) {
+	offset := (page - 1) * limit
+	songs, err := s.songRepository.FindAll(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	total, err := s.songRepository.Count(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	responses := make([]SongResponse, len(songs))
+	for i, s := range songs {
+		resp := SongResponse{
+			ID:       s.ID.String(),
+			Title:    s.Title,
+			Artist:   s.Artist,
+			Duration: s.Duration,
+			SourceID: s.SourceID,
+		}
+		if s.UploadedBy != nil {
+			str := s.UploadedBy.String()
+			resp.UploadedBy = &str
+		}
+		responses[i] = resp
+	}
+
+	return responses, total, nil
+}
+
+func (s *SongService) DeleteSong(ctx context.Context, id uuid.UUID) error {
+	_, err := db.Transactional(ctx, s.transactionManager, func(txCtx context.Context) (interface{}, error) {
+		if err := s.fingerprintService.DeleteBySongID(txCtx, id); err != nil {
+			return nil, fmt.Errorf("failed to delete fingerprints: %w", err)
+		}
+
+		if err := s.songRepository.Delete(txCtx, id); err != nil {
+			return nil, fmt.Errorf("failed to delete song: %w", err)
+		}
+
+		return nil, nil
+	})
+
+	return err
+}
+
 func (s *SongService) EnqueueSong(ctx context.Context, link string, uploadedBy *uuid.UUID) error {
 	sourceID, err := s.songMetadataSource.ExtractSourceID(link)
 	if err != nil {

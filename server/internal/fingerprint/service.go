@@ -35,3 +35,7 @@ func (s *FingerprintService) GetMatchingHashes(ctx context.Context, sampleHashes
 	}
 	return s.repo.FindHashesByValues(ctx, hashValues)
 }
+
+func (s *FingerprintService) DeleteBySongID(ctx context.Context, songID uuid.UUID) error {
+	return s.repo.DeleteBySongID(ctx, songID)
+}

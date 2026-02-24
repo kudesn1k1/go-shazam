@@ -45,7 +45,9 @@ const accessToken = ref<string | null>(null);
 const user = ref<User | null>(null);
 const isLoading = ref(false);
 const error = ref<string | null>(null);
+const isInitialized = ref(false);
 
+let initPromise: Promise<void> | null = null;
 let tokenExpiry: number | null = null;
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -220,11 +222,20 @@ async function logout(): Promise<void> {
 }
 
 async function initialize(): Promise<void> {
-  // Try to restore session from httpOnly refresh token cookie
-  const refreshed = await refreshTokens();
-  if (refreshed) {
-    await fetchUser();
-  }
+  if (isInitialized.value) return;
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    // Try to restore session from httpOnly refresh token cookie
+    const refreshed = await refreshTokens();
+    if (refreshed) {
+      await fetchUser();
+    }
+    isInitialized.value = true;
+    initPromise = null;
+  })();
+
+  return initPromise;
 }
 
 function getAccessToken(): string | null {
@@ -240,6 +251,7 @@ export function useAuth() {
     user: readonly(user),
     isLoading: readonly(isLoading),
     error: readonly(error),
+    isInitialized: readonly(isInitialized),
     isAuthenticated,
     isAdmin,
 

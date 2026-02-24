@@ -32,10 +32,17 @@ func RegisterRoutes(r *gin.Engine, h *SongHandler, jwtService *auth.JWTService) 
 		userSongGroup.GET("/songs", h.GetMySongs)
 	}
 
-	adminSongGroup := r.Group("/api/users")
+	adminSongGroup := r.Group("/api/songs")
 	adminSongGroup.Use(authMiddleware, adminMiddleware)
 	{
-		adminSongGroup.GET("/:id/songs", h.GetUserSongs)
+		adminSongGroup.GET("", h.GetAllSongs)
+		adminSongGroup.DELETE("/:id", h.Delete)
+	}
+
+	adminUserSongGroup := r.Group("/api/users")
+	adminUserSongGroup.Use(authMiddleware, adminMiddleware)
+	{
+		adminUserSongGroup.GET("/:id/songs", h.GetUserSongs)
 	}
 }
 
@@ -79,6 +86,38 @@ func (h *SongHandler) GetMySongs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, pagination.NewResponse(songs, total, p.Page, p.Limit))
+}
+
+func (h *SongHandler) GetAllSongs(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
+
+	p := pagination.ParseParams(c)
+	songs, total, err := h.songService.GetAllSongs(c.Request.Context(), p.Page, p.Limit)
+	if err != nil {
+		log.Error("failed to get all songs", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get songs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, pagination.NewResponse(songs, total, p.Page, p.Limit))
+}
+
+func (h *SongHandler) Delete(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid song id"})
+		return
+	}
+
+	if err := h.songService.DeleteSong(c.Request.Context(), id); err != nil {
+		log.Error("failed to delete song", "error", err, "song_id", id)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete song"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "song deleted successfully"})
 }
 
 func (h *SongHandler) GetUserSongs(c *gin.Context) {

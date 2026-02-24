@@ -15,6 +15,9 @@ type SongRepositoryInterface interface {
 	FindByTitleAndArtist(ctx context.Context, title string, artist string) (*SongEntity, error)
 	FindByUploadedBy(ctx context.Context, userID uuid.UUID, limit, offset int) ([]SongEntity, error)
 	CountByUploadedBy(ctx context.Context, userID uuid.UUID) (int, error)
+	FindAll(ctx context.Context, limit, offset int) ([]SongEntity, error)
+	Count(ctx context.Context) (int, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type SongRepository struct {
@@ -74,4 +77,28 @@ func (r *SongRepository) CountByUploadedBy(ctx context.Context, userID uuid.UUID
 		return 0, err
 	}
 	return count, nil
+}
+
+func (r *SongRepository) FindAll(ctx context.Context, limit, offset int) ([]SongEntity, error) {
+	query := "SELECT * FROM songs ORDER BY id DESC LIMIT $1 OFFSET $2"
+	var songs []SongEntity
+	if err := r.db.Connection(ctx).SelectContext(ctx, &songs, query, limit, offset); err != nil {
+		return nil, err
+	}
+	return songs, nil
+}
+
+func (r *SongRepository) Count(ctx context.Context) (int, error) {
+	query := "SELECT COUNT(*) FROM songs"
+	var count int
+	if err := r.db.Connection(ctx).GetContext(ctx, &count, query); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *SongRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	query := "DELETE FROM songs WHERE id = $1"
+	_, err := r.db.Connection(ctx).ExecContext(ctx, query, id)
+	return err
 }

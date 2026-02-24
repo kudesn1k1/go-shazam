@@ -14,6 +14,11 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/songs',
+      component: () => import('./pages/SongsPage.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
       path: '/users',
       component: () => import('./pages/UsersPage.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
@@ -26,8 +31,10 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach((to) => {
-  const { isAuthenticated, isAdmin } = useAuth();
+router.beforeEach(async (to) => {
+  const { isAuthenticated, isAdmin, initialize } = useAuth();
+
+  await initialize();
 
   if (to.meta.requiresAuth && !isAuthenticated.value) {
     return '/';

@@ -13,6 +13,7 @@
 
       <nav v-if="isAuthenticated" class="nav-links">
         <RouterLink to="/my-songs" class="nav-link">My Songs</RouterLink>
+        <RouterLink v-if="isAdmin" to="/songs" class="nav-link">All Songs</RouterLink>
         <RouterLink v-if="isAdmin" to="/users" class="nav-link">Users</RouterLink>
       </nav>
 
@@ -47,13 +48,14 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import { RouterLink, RouterView } from 'vue-router';
+import { RouterLink, RouterView, useRouter } from 'vue-router';
 
 import AuthModal from './components/AuthModal.vue';
 import { useAuth } from './composables/useAuth';
 import { useAuthModal } from './composables/useAuthModal';
 import { useToast } from './composables/useToast';
 
+const router = useRouter();
 const authModal = useAuthModal();
 const toast = useToast();
 
@@ -91,6 +93,7 @@ const handleAuthSubmit = async (payload: { mode: 'login' | 'register'; email: st
 
 const handleLogout = async () => {
   await logout();
+  router.push('/');
   toast.show('You have been logged out', 'success');
 };
 </script>

@@ -9,6 +9,7 @@ import (
 	appHttp "go-shazam/internal/http"
 	"go-shazam/internal/queue"
 	"go-shazam/internal/recognition"
+	"go-shazam/internal/role"
 	"go-shazam/internal/song"
 	"go-shazam/internal/spotify"
 	"go-shazam/internal/user"
@@ -25,6 +26,7 @@ func NewWebApp() *fx.App {
 		appHttp.Module,
 		auth.Module,
 		// Core modules
+		role.Module,
 		song.Module,
 		spotify.Module,
 		youtube.Module,

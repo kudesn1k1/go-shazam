@@ -6,6 +6,7 @@ import (
 	"go-shazam/internal/core/db"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -73,5 +74,11 @@ func (r *Repository) insertChunk(ctx context.Context, chunk []Hash) error {
 	query += strings.Join(placeholders, ", ")
 
 	_, err := r.db.Connection(ctx).ExecContext(ctx, query, values...)
+	return err
+}
+
+func (r *Repository) DeleteBySongID(ctx context.Context, songID uuid.UUID) error {
+	query := "DELETE FROM fingerprints WHERE song_id = $1"
+	_, err := r.db.Connection(ctx).ExecContext(ctx, query, songID)
 	return err
 }

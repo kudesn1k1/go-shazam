@@ -13,6 +13,7 @@ type contextKey string
 
 const (
 	UserIDContextKey contextKey = "user_id"
+	RolesContextKey  contextKey = "roles"
 	authHeaderName   string     = "Authorization"
 	bearerPrefix     string     = "Bearer "
 )
@@ -45,8 +46,8 @@ func AuthMiddleware(jwtService *JWTService) gin.HandlerFunc {
 			return
 		}
 
-		// Add user ID to context
 		ctx := context.WithValue(c.Request.Context(), UserIDContextKey, claims.UserID)
+		ctx = context.WithValue(ctx, RolesContextKey, claims.Roles)
 		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
@@ -74,8 +75,8 @@ func OptionalAuthMiddleware(jwtService *JWTService) gin.HandlerFunc {
 			return
 		}
 
-		// Add user ID to context
 		ctx := context.WithValue(c.Request.Context(), UserIDContextKey, claims.UserID)
+		ctx = context.WithValue(ctx, RolesContextKey, claims.Roles)
 		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
@@ -85,4 +86,25 @@ func OptionalAuthMiddleware(jwtService *JWTService) gin.HandlerFunc {
 func GetUserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	userID, ok := ctx.Value(UserIDContextKey).(uuid.UUID)
 	return userID, ok
+}
+
+func GetRolesFromContext(ctx context.Context) []string {
+	roles, _ := ctx.Value(RolesContextKey).([]string)
+	return roles
+}
+
+// RoleMiddleware checks that the authenticated user has at least one of the required roles
+func RoleMiddleware(requiredRoles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roles := GetRolesFromContext(c.Request.Context())
+		for _, userRole := range roles {
+			for _, required := range requiredRoles {
+				if userRole == required {
+					c.Next()
+					return
+				}
+			}
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	}
 }

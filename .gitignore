@@ -36,3 +36,7 @@ go.work.sum
 .cursor/
 
 package-lock.json
+
+# Local agent artifacts — not versioned
+CLAUDE.md
+docs/

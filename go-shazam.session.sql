@@ -1,0 +1,1 @@
+INSERT INTO user_roles(user_id, role_id) VALUES ('019db058-c1a9-7562-8754-39d2381c6340', '1');

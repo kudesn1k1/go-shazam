@@ -77,29 +77,48 @@ func (h *SongHandler) GetMySongs(c *gin.Context) {
 		return
 	}
 
-	p := pagination.ParseParams(c)
-	songs, total, err := h.songService.GetUserSongs(c.Request.Context(), userID, p.Page, p.Limit)
+	filter, err := parseBaseSongFilter(c)
 	if err != nil {
-		log.Error("failed to get user songs", "error", err, "user_id", userID)
+		respondFilterError(c, err)
+		return
+	}
+	filter.UploadedBy = &userID
+
+	songs, total, err := h.songService.ListSongs(c.Request.Context(), filter)
+	if err != nil {
+		log.Error("failed to list my songs", "error", err, "user_id", userID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get songs"})
 		return
 	}
 
-	c.JSON(http.StatusOK, pagination.NewResponse(songs, total, p.Page, p.Limit))
+	page := filter.Offset/filter.Limit + 1
+	c.JSON(http.StatusOK, pagination.NewResponse(songs, total, page, filter.Limit))
 }
 
 func (h *SongHandler) GetAllSongs(c *gin.Context) {
 	log := logger.FromContext(c.Request.Context())
 
-	p := pagination.ParseParams(c)
-	songs, total, err := h.songService.GetAllSongs(c.Request.Context(), p.Page, p.Limit)
+	filter, err := parseBaseSongFilter(c)
 	if err != nil {
-		log.Error("failed to get all songs", "error", err)
+		respondFilterError(c, err)
+		return
+	}
+	uploader, err := parseUploadedByQuery(c)
+	if err != nil {
+		respondFilterError(c, err)
+		return
+	}
+	filter.UploadedBy = uploader
+
+	songs, total, err := h.songService.ListSongs(c.Request.Context(), filter)
+	if err != nil {
+		log.Error("failed to list all songs", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get songs"})
 		return
 	}
 
-	c.JSON(http.StatusOK, pagination.NewResponse(songs, total, p.Page, p.Limit))
+	page := filter.Offset/filter.Limit + 1
+	c.JSON(http.StatusOK, pagination.NewResponse(songs, total, page, filter.Limit))
 }
 
 func (h *SongHandler) Delete(c *gin.Context) {
@@ -129,13 +148,29 @@ func (h *SongHandler) GetUserSongs(c *gin.Context) {
 		return
 	}
 
-	p := pagination.ParseParams(c)
-	songs, total, err := h.songService.GetUserSongs(c.Request.Context(), userID, p.Page, p.Limit)
+	filter, err := parseBaseSongFilter(c)
 	if err != nil {
-		log.Error("failed to get user songs", "error", err, "user_id", userID)
+		respondFilterError(c, err)
+		return
+	}
+	filter.UploadedBy = &userID
+
+	songs, total, err := h.songService.ListSongs(c.Request.Context(), filter)
+	if err != nil {
+		log.Error("failed to list user songs", "error", err, "user_id", userID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get songs"})
 		return
 	}
 
-	c.JSON(http.StatusOK, pagination.NewResponse(songs, total, p.Page, p.Limit))
+	page := filter.Offset/filter.Limit + 1
+	c.JSON(http.StatusOK, pagination.NewResponse(songs, total, page, filter.Limit))
+}
+
+func respondFilterError(c *gin.Context, err error) {
+	var ferr *FilterError
+	if errors.As(err, &ferr) {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "validation failed", "fields": ferr.Fields})
+		return
+	}
+	c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 }

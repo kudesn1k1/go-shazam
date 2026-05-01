@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"go-shazam/internal/core/db"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -18,6 +19,8 @@ type UserRepositoryInterface interface {
 	ExistsByEmailHash(ctx context.Context, emailHash string) (bool, error)
 	FindAll(ctx context.Context, limit, offset int) ([]UserEntity, error)
 	Count(ctx context.Context) (int, error)
+	GetAvatarHash(ctx context.Context, userID uuid.UUID) (*string, error)
+	SetAvatarHash(ctx context.Context, userID uuid.UUID, hash *string) error
 }
 
 type UserRepository struct {
@@ -86,4 +89,29 @@ func (r *UserRepository) Count(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+func (r *UserRepository) GetAvatarHash(ctx context.Context, userID uuid.UUID) (*string, error) {
+	query := "SELECT avatar_file_hash FROM users WHERE id = $1"
+	var hash *string
+	if err := r.db.Connection(ctx).GetContext(ctx, &hash, query, userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return hash, nil
+}
+
+func (r *UserRepository) SetAvatarHash(ctx context.Context, userID uuid.UUID, hash *string) error {
+	query := "UPDATE users SET avatar_file_hash = $1, updated_at = $2 WHERE id = $3"
+	res, err := r.db.Connection(ctx).ExecContext(ctx, query, hash, time.Now().UTC(), userID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrUserNotFound
+	}
+	return nil
 }

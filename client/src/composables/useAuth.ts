@@ -9,6 +9,7 @@ interface User {
   email: string;
   roles: string[];
   created_at: string;
+  avatar_url: string | null;
 }
 
 interface TokenResponse {

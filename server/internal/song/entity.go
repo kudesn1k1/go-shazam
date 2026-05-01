@@ -1,6 +1,10 @@
 package song
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type SongEntity struct {
 	ID         uuid.UUID  `db:"id"`
@@ -9,4 +13,5 @@ type SongEntity struct {
 	Duration   int        `db:"duration"`
 	SourceID   string     `db:"source_id"`
 	UploadedBy *uuid.UUID `db:"uploaded_by"`
+	CreatedAt  time.Time  `db:"created_at"`
 }

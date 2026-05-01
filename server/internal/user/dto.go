@@ -28,8 +28,17 @@ type UserResponse struct {
 	Email     string   `json:"email"`
 	Roles     []string `json:"roles"`
 	CreatedAt string   `json:"created_at"`
+	AvatarURL *string  `json:"avatar_url"`
 }
 
 type UpdateRolesRequest struct {
 	Roles []string `json:"roles" binding:"required"`
+}
+
+type SetAvatarRequest struct {
+	FileHash string `json:"file_hash" binding:"required"`
+}
+
+type AvatarResponse struct {
+	AvatarURL string `json:"avatar_url"`
 }

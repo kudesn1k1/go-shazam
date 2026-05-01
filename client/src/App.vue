@@ -19,7 +19,10 @@
 
       <div class="actions">
         <template v-if="isAuthenticated">
-          <span class="user-email">{{ user?.email }}</span>
+          <RouterLink v-if="user" to="/profile" class="profile-link">
+            <UserAvatar :src="user.avatar_url" :email="user.email" size="sm" />
+            <span class="user-email">{{ user.email }}</span>
+          </RouterLink>
           <button class="ghost" @click="handleLogout">Log out</button>
         </template>
         <template v-else>
@@ -51,6 +54,7 @@ import { onMounted } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
 
 import AuthModal from './components/AuthModal.vue';
+import UserAvatar from './components/UserAvatar.vue';
 import { useAuth } from './composables/useAuth';
 import { useAuthModal } from './composables/useAuthModal';
 import { useToast } from './composables/useToast';
@@ -126,9 +130,17 @@ const handleLogout = async () => {
 .user-email {
   font-size: 0.9rem;
   opacity: 0.8;
-  margin-right: 0.5rem;
   display: flex;
   align-items: center;
+}
+
+.profile-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+  margin-right: 0.5rem;
 }
 
 .toast-error {

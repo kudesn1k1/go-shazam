@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go-shazam/internal/auth"
 	"go-shazam/internal/core"
+	"go-shazam/internal/files"
 	"go-shazam/internal/fingerprint"
 	appHttp "go-shazam/internal/http"
 	"go-shazam/internal/queue"
@@ -33,10 +34,12 @@ func NewWebApp() *fx.App {
 		recognition.Module,
 		queue.Module,
 		user.Module,
+		files.Module,
 		// Http modules
 		song.HttpModule,
 		recognition.HttpModule,
 		user.HttpModule,
+		files.HttpModule,
 
 		fx.Invoke(core.RegisterCoreMiddleware),
 		fx.Invoke(func(r *http.Server) {}),
@@ -52,7 +55,9 @@ func NewWorkerApp() *fx.App {
 		youtube.Module,
 		recognition.Module,
 		queue.Module,
+		files.Module,
 		song.QueueModule,
+		files.CleanupModule,
 		fx.Invoke(registerWorkerLifecycle),
 	)
 }

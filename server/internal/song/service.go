@@ -90,6 +90,32 @@ func (s *SongService) ListSongs(ctx context.Context, f SongFilter) ([]SongRespon
 	return responses, total, nil
 }
 
+// GetSong returns a single song by ID, or (nil, nil) when not found —
+// matching the repository's "not found = nil entity, nil error" convention.
+func (s *SongService) GetSong(ctx context.Context, id uuid.UUID) (*SongResponse, error) {
+	sg, err := s.songRepository.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if sg == nil {
+		return nil, nil
+	}
+
+	resp := SongResponse{
+		ID:        sg.ID.String(),
+		Title:     sg.Title,
+		Artist:    sg.Artist,
+		Duration:  sg.Duration,
+		SourceID:  sg.SourceID,
+		CreatedAt: sg.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	if sg.UploadedBy != nil {
+		str := sg.UploadedBy.String()
+		resp.UploadedBy = &str
+	}
+	return &resp, nil
+}
+
 func (s *SongService) DeleteSong(ctx context.Context, id uuid.UUID) error {
 	_, err := db.Transactional(ctx, s.transactionManager, func(txCtx context.Context) (interface{}, error) {
 		if err := s.fingerprintService.DeleteBySongID(txCtx, id); err != nil {

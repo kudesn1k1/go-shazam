@@ -26,6 +26,14 @@ func RegisterRoutes(r *gin.Engine, h *SongHandler, jwtService *auth.JWTService) 
 
 	r.POST("/api/song/add", authMiddleware, h.Add)
 
+	// Public catalog: unauthenticated, served via PublicSongResponse so uploader
+	// identity is never exposed. Drives the SEO-indexable /catalog frontend.
+	publicGroup := r.Group("/api/public/songs")
+	{
+		publicGroup.GET("", h.GetPublicSongs)
+		publicGroup.GET("/:id", h.GetPublicSong)
+	}
+
 	userSongGroup := r.Group("/api/user")
 	userSongGroup.Use(authMiddleware)
 	{
@@ -137,6 +145,54 @@ func (h *SongHandler) Delete(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "song deleted successfully"})
+}
+
+func (h *SongHandler) GetPublicSongs(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
+
+	filter, err := parseBaseSongFilter(c)
+	if err != nil {
+		respondFilterError(c, err)
+		return
+	}
+
+	songs, total, err := h.songService.ListSongs(c.Request.Context(), filter)
+	if err != nil {
+		log.Error("failed to list public songs", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get songs"})
+		return
+	}
+
+	public := make([]PublicSongResponse, len(songs))
+	for i, s := range songs {
+		public[i] = ToPublicSongResponse(s)
+	}
+
+	page := filter.Offset/filter.Limit + 1
+	c.JSON(http.StatusOK, pagination.NewResponse(public, total, page, filter.Limit))
+}
+
+func (h *SongHandler) GetPublicSong(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid song id"})
+		return
+	}
+
+	sg, err := h.songService.GetSong(c.Request.Context(), id)
+	if err != nil {
+		log.Error("failed to get public song", "error", err, "song_id", id)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get song"})
+		return
+	}
+	if sg == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, ToPublicSongResponse(*sg))
 }
 
 func (h *SongHandler) GetUserSongs(c *gin.Context) {

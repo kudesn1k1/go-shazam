@@ -15,7 +15,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useAuth } from '../composables/useAuth';
+import { useNoindex } from '../composables/useSeo';
 import AvatarUploader from '../components/AvatarUploader.vue';
+
+useNoindex('Profile');
 
 const { user, fetchUser } = useAuth();
 

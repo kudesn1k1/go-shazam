@@ -45,7 +45,10 @@ import { RouterLink } from 'vue-router';
 import Pagination from '../components/Pagination.vue';
 import UserAvatar from '../components/UserAvatar.vue';
 import { useApi } from '../composables/useApi';
+import { useNoindex } from '../composables/useSeo';
 import type { UserWithAvatar } from '../types/api';
+
+useNoindex('Users');
 
 const { listUsers } = useApi();
 

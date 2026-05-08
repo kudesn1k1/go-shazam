@@ -3,6 +3,7 @@ package core
 import (
 	"go-shazam/internal/core/db"
 	"go-shazam/internal/core/middleware"
+	coreredis "go-shazam/internal/core/redis"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/fx"
@@ -10,6 +11,7 @@ import (
 
 var Module = fx.Module("core",
 	fx.Provide(db.NewDB, db.NewTransactionManager, db.NewRepository),
+	coreredis.Module,
 )
 
 func RegisterCoreMiddleware(r *gin.Engine) {

@@ -2,6 +2,7 @@ import { useAuth } from './useAuth';
 import type {
   SongFilterQuery,
   SongListItem,
+  PublicSong,
   UserWithAvatar,
   FileUploadResponse,
   AvatarResponse,
@@ -58,6 +59,12 @@ export function useApi() {
   function listMySongs(filter: SongFilterQuery) {
     return authFetch<PaginatedResponse<SongListItem>>(`/api/user/songs${buildQuery(filter)}`);
   }
+  function listPublicSongs(filter: SongFilterQuery) {
+    return authFetch<PaginatedResponse<PublicSong>>(`/api/public/songs${buildQuery(filter)}`);
+  }
+  function getPublicSong(id: string) {
+    return authFetch<PublicSong>(`/api/public/songs/${id}`);
+  }
   function listAllSongs(filter: SongFilterQuery) {
     return authFetch<PaginatedResponse<SongListItem>>(`/api/songs${buildQuery(filter)}`);
   }
@@ -106,7 +113,7 @@ export function useApi() {
   }
 
   return {
-    listMySongs, listAllSongs, listUserSongs,
+    listMySongs, listAllSongs, listUserSongs, listPublicSongs, getPublicSong,
     listUsers, getUser,
     deleteSong, updateUserRoles,
     uploadFile, setOwnAvatar, clearOwnAvatar, setUserAvatar, clearUserAvatar,
@@ -114,4 +121,4 @@ export function useApi() {
 }
 
 export { API_BASE_URL };
-export type { SongFilterQuery, SongListItem, UserWithAvatar, FileUploadResponse, AvatarResponse, PaginatedResponse };
+export type { SongFilterQuery, SongListItem, PublicSong, UserWithAvatar, FileUploadResponse, AvatarResponse, PaginatedResponse };

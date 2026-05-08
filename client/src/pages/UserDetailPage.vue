@@ -84,7 +84,10 @@ import SongFilters from '../components/SongFilters.vue';
 import SongSort from '../components/SongSort.vue';
 import { useApi } from '../composables/useApi';
 import { useSongFilters } from '../composables/useSongFilters';
+import { useNoindex } from '../composables/useSeo';
 import type { SongListItem, UserWithAvatar } from '../types/api';
+
+useNoindex('User detail');
 
 const route = useRoute();
 const { getUser, listUserSongs, updateUserRoles } = useApi();

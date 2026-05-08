@@ -14,6 +14,7 @@ import (
 	"go-shazam/internal/song"
 	"go-shazam/internal/spotify"
 	"go-shazam/internal/user"
+	"go-shazam/internal/web"
 	"go-shazam/internal/youtube"
 	"net/http"
 
@@ -35,11 +36,13 @@ func NewWebApp() *fx.App {
 		queue.Module,
 		user.Module,
 		files.Module,
+		web.Module,
 		// Http modules
 		song.HttpModule,
 		recognition.HttpModule,
 		user.HttpModule,
 		files.HttpModule,
+		web.HttpModule,
 
 		fx.Invoke(core.RegisterCoreMiddleware),
 		fx.Invoke(func(r *http.Server) {}),

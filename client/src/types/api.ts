@@ -25,6 +25,15 @@ export interface SongListItem {
   created_at: string; // RFC3339 UTC
 }
 
+export interface PublicSong {
+  id: string;
+  title: string;
+  artist: string;
+  duration: number;
+  source_id: string;
+  created_at: string;
+}
+
 export interface UserWithAvatar {
   id: string;
   email: string;

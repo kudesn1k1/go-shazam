@@ -58,9 +58,23 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
+import { useHead } from '@unhead/vue';
 import AddSongForm from '../components/AddSongForm.vue';
 import { useAuthModal } from '../composables/useAuthModal';
 import { useToast } from '../composables/useToast';
+
+useHead({
+  title: 'Go Shazam — Identify the music around you',
+  meta: [
+    { name: 'description', content: 'Tap to identify any song playing around you. Browse our growing catalog of recognized tracks and explore by artist, title, or recency.' },
+    { property: 'og:title', content: 'Go Shazam — Identify the music around you' },
+    { property: 'og:description', content: 'Tap to identify any song playing around you.' },
+    { property: 'og:type', content: 'website' },
+  ],
+  link: [
+    { rel: 'canonical', href: () => (typeof window !== 'undefined' ? `${window.location.origin}/` : '/') },
+  ],
+});
 
 const authModal = useAuthModal();
 const toast = useToast();

@@ -1,7 +1,8 @@
 services:
   server:
     build:
-      context: ./server
+      context: .
+      dockerfile: server/Dockerfile
     entrypoint: ["/docker-entrypoint.sh"]
     env_file:
       - ./server/.env
@@ -17,7 +18,8 @@ services:
 
   worker:
     build:
-      context: ./server
+      context: .
+      dockerfile: server/Dockerfile
     entrypoint: ["/worker"]
     env_file:
       - ./server/.env

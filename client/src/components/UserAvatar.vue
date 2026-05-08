@@ -1,6 +1,15 @@
 <template>
   <div :class="['avatar', sizeClass]" :style="{ backgroundColor: color }">
-    <img v-if="displaySrc" :src="displaySrc" :alt="alt" @error="onImgError" />
+    <img
+      v-if="displaySrc"
+      :src="displaySrc"
+      :alt="alt"
+      :width="pixelSize"
+      :height="pixelSize"
+      loading="lazy"
+      decoding="async"
+      @error="onImgError"
+    />
     <span v-else class="initials">{{ initials }}</span>
   </div>
 </template>
@@ -20,6 +29,7 @@ const props = withDefaults(
 );
 
 const sizeClass = computed(() => `size-${props.size}`);
+const pixelSize = computed(() => ({ sm: 32, md: 64, lg: 128 } as const)[props.size]);
 
 const imgErrored = ref(false);
 watch(() => props.src, () => { imgErrored.value = false; });

@@ -36,6 +36,28 @@ type SongResponse struct {
 	CreatedAt  string  `json:"created_at"`
 }
 
+// PublicSongResponse omits uploader identity so the public catalog endpoint
+// doesn't leak which user uploaded which song.
+type PublicSongResponse struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Artist    string `json:"artist"`
+	Duration  int    `json:"duration"`
+	SourceID  string `json:"source_id"`
+	CreatedAt string `json:"created_at"`
+}
+
+func ToPublicSongResponse(s SongResponse) PublicSongResponse {
+	return PublicSongResponse{
+		ID:        s.ID,
+		Title:     s.Title,
+		Artist:    s.Artist,
+		Duration:  s.Duration,
+		SourceID:  s.SourceID,
+		CreatedAt: s.CreatedAt,
+	}
+}
+
 type SortField string
 type SortOrder string
 

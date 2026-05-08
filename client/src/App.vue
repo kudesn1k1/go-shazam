@@ -11,10 +11,13 @@
         </div>
       </div>
 
-      <nav v-if="isAuthenticated" class="nav-links">
-        <RouterLink to="/my-songs" class="nav-link">My Songs</RouterLink>
-        <RouterLink v-if="isAdmin" to="/songs" class="nav-link">All Songs</RouterLink>
-        <RouterLink v-if="isAdmin" to="/users" class="nav-link">Users</RouterLink>
+      <nav class="nav-links">
+        <RouterLink to="/catalog" class="nav-link">Catalog</RouterLink>
+        <template v-if="isAuthenticated">
+          <RouterLink to="/my-songs" class="nav-link">My Songs</RouterLink>
+          <RouterLink v-if="isAdmin" to="/songs" class="nav-link">All Songs</RouterLink>
+          <RouterLink v-if="isAdmin" to="/users" class="nav-link">Users</RouterLink>
+        </template>
       </nav>
 
       <div class="actions">

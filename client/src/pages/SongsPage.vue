@@ -56,7 +56,10 @@ import SongSort from '../components/SongSort.vue';
 import { useApi } from '../composables/useApi';
 import { useSongFilters } from '../composables/useSongFilters';
 import { useToast } from '../composables/useToast';
+import { useNoindex } from '../composables/useSeo';
 import type { SongListItem } from '../types/api';
+
+useNoindex('All Songs');
 
 const { listAllSongs, deleteSong } = useApi();
 const { filters, update } = useSongFilters();

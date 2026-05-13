@@ -35,12 +35,16 @@ func NewGinRouter(lc fx.Lifecycle, corsConfig *CORSConfig) *gin.Engine {
 func SetupSecurityHeader(r *gin.Engine) {
 	r.Use(func(c *gin.Context) {
 		c.Header("X-Frame-Options", "DENY")
-		c.Header("Content-Security-Policy", "default-src 'self'; connect-src *; font-src *; script-src-elem * 'unsafe-inline'; img-src * data:; style-src * 'unsafe-inline';")
+		c.Header("Content-Security-Policy", "default-src 'self'; connect-src *; font-src *; script-src-elem * 'unsafe-inline'; img-src * data: blob:; style-src * 'unsafe-inline';")
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		c.Header("Referrer-Policy", "strict-origin")
 		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("Permissions-Policy", "geolocation=(),midi=(),sync-xhr=(),microphone=(),camera=(),magnetometer=(),gyroscope=(),fullscreen=(self),payment=()")
+		// microphone=(self) lets the SPA's recognition feature call getUserMedia
+		// on same-origin pages while still blocking any cross-origin iframe from
+		// piggy-backing on the permission. The other features stay denied because
+		// nothing in the app uses them — flip to (self) only when needed.
+		c.Header("Permissions-Policy", "geolocation=(),midi=(),sync-xhr=(),microphone=(self),camera=(),magnetometer=(),gyroscope=(),fullscreen=(self),payment=()")
 		c.Next()
 	})
 }

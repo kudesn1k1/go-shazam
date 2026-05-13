@@ -1,12 +1,28 @@
-# Build stage
+# Stage 1: build the SPA so we can embed it into the Go binary
+FROM node:24-alpine AS client-builder
+
+WORKDIR /client
+
+COPY client/package.json client/package-lock.json ./
+RUN npm ci
+
+COPY client/ .
+RUN npm run build
+
+# Stage 2: build Go binaries
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
+COPY server/go.mod server/go.sum ./
 RUN go mod download
 
-COPY . .
+COPY server/ .
+
+# Replace the dev stub at internal/web/dist with the freshly built SPA so
+# go:embed picks up the real bundle.
+RUN rm -rf ./internal/web/dist
+COPY --from=client-builder /client/dist ./internal/web/dist
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /server ./cmd/server/main.go
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /worker ./cmd/worker/main.go
@@ -14,6 +30,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /worker ./cmd/worker/main.
 # Install goose for migrations
 RUN go install github.com/pressly/goose/v3/cmd/goose@latest
 
+# Stage 3: minimal runtime
 FROM debian:bookworm-slim
 
 # Install minimal Python + pip + ffmpeg + bash + coreutils (for timeout)
@@ -24,7 +41,8 @@ RUN apt-get update && \
 	ffmpeg \
 	bash \
 	coreutils \
-	ca-certificates && \
+	ca-certificates \
+	wget && \
 	# Install yt-dlp via pip (clean, no cache)
 	pip3 install --no-cache-dir --break-system-packages yt-dlp && \
 	# Clean up
@@ -44,8 +62,8 @@ COPY --from=builder /go/bin/goose /usr/local/bin/goose
 RUN chmod +x /usr/local/bin/goose
 
 # Copy entrypoint script and migrations
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-COPY migrations ./migrations
+COPY server/docker-entrypoint.sh /docker-entrypoint.sh
+COPY server/migrations ./migrations
 
 # Make entrypoint executable
 RUN chmod +x /docker-entrypoint.sh

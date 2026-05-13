@@ -2,6 +2,11 @@
   <div class="page-content">
     <h1 class="page-title">All Songs</h1>
 
+    <SongFilters mode="admin" />
+    <div class="toolbar">
+      <SongSort />
+    </div>
+
     <div v-if="loading" class="state-msg">Loading…</div>
     <div v-else-if="error" class="state-msg error">{{ error }}</div>
     <div v-else-if="songs.length === 0" class="state-msg">No songs found.</div>
@@ -13,6 +18,7 @@
             <th>Title</th>
             <th>Artist</th>
             <th>Duration</th>
+            <th>Added</th>
             <th>Source</th>
             <th></th>
           </tr>
@@ -22,6 +28,7 @@
             <td>{{ s.title }}</td>
             <td>{{ s.artist }}</td>
             <td>{{ formatDuration(s.duration) }}</td>
+            <td>{{ formatDate(s.created_at) }}</td>
             <td>
               <a :href="`https://www.youtube.com/watch?v=${s.source_id}`" target="_blank" class="source-link">
                 YouTube
@@ -36,32 +43,41 @@
         </tbody>
       </table>
 
-      <Pagination v-model="page" :total="total" :limit="limit" />
+      <Pagination :model-value="page" :total="total" :limit="limit" @update:model-value="onPageChange" />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import Pagination from '../components/Pagination.vue';
-import { useApi, type Song } from '../composables/useApi';
+import SongFilters from '../components/SongFilters.vue';
+import SongSort from '../components/SongSort.vue';
+import { useApi } from '../composables/useApi';
+import { useSongFilters } from '../composables/useSongFilters';
 import { useToast } from '../composables/useToast';
+import { useNoindex } from '../composables/useSeo';
+import type { SongListItem } from '../types/api';
 
-const { getAllSongs, deleteSong } = useApi();
+useNoindex('All Songs');
+
+const { listAllSongs, deleteSong } = useApi();
+const { filters, update } = useSongFilters();
 const toast = useToast();
 
-const songs = ref<Song[]>([]);
+const songs = ref<SongListItem[]>([]);
 const total = ref(0);
-const page = ref(1);
-const limit = 20;
 const loading = ref(false);
 const error = ref<string | null>(null);
 const deleting = ref<string | null>(null);
 
+const page = computed(() => filters.value.page ?? 1);
+const limit = computed(() => filters.value.limit ?? 20);
+
 async function load() {
   loading.value = true;
   error.value = null;
-  const { data, error: err } = await getAllSongs(page.value, limit);
+  const { data, error: err } = await listAllSongs(filters.value);
   if (err || !data) {
     error.value = err ?? 'Failed to load songs';
   } else {
@@ -87,6 +103,10 @@ async function handleDelete(id: string) {
   deleting.value = null;
 }
 
+function onPageChange(p: number) {
+  update({ page: p });
+}
+
 function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   const m = Math.floor(seconds / 60);
@@ -94,11 +114,18 @@ function formatDuration(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-watch(page, load);
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
+watch(() => filters.value, load, { deep: true });
 onMounted(load);
 </script>
 
 <style scoped>
+.toolbar { display: flex; justify-content: flex-end; margin: 0.5rem 0 1rem; }
 .source-link {
   color: #3ea6ff;
   text-decoration: none;

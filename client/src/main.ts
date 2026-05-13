@@ -1,7 +1,10 @@
 import { createApp } from 'vue';
+import { createHead } from '@unhead/vue/client';
 
 import App from './App.vue';
 import router from './router';
 import './style.css';
 
-createApp(App).use(router).mount('#app');
+const head = createHead();
+
+createApp(App).use(router).use(head).mount('#app');

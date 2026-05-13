@@ -1,0 +1,26 @@
+name: integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go-integration:
+    name: Go integration tests (testcontainers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+          cache-dependency-path: server/go.sum
+      - name: go test -tags=integration
+        run: |
+          cd server
+          go test -tags=integration ./... -count=1

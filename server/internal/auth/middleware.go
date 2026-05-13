@@ -54,35 +54,6 @@ func AuthMiddleware(jwtService *JWTService) gin.HandlerFunc {
 	}
 }
 
-// OptionalAuthMiddleware validates JWT tokens if present, but doesn't require them
-func OptionalAuthMiddleware(jwtService *JWTService) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authHeader := c.GetHeader(authHeaderName)
-		if authHeader == "" {
-			c.Next()
-			return
-		}
-
-		if !strings.HasPrefix(authHeader, bearerPrefix) {
-			c.Next()
-			return
-		}
-
-		tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
-		claims, err := jwtService.ValidateAccessToken(tokenString)
-		if err != nil {
-			c.Next()
-			return
-		}
-
-		ctx := context.WithValue(c.Request.Context(), UserIDContextKey, claims.UserID)
-		ctx = context.WithValue(ctx, RolesContextKey, claims.Roles)
-		c.Request = c.Request.WithContext(ctx)
-
-		c.Next()
-	}
-}
-
 func GetUserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	userID, ok := ctx.Value(UserIDContextKey).(uuid.UUID)
 	return userID, ok

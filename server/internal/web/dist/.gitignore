@@ -1,0 +1,5 @@
+# Real build artifacts shouldn't land in git — they're produced by the
+# Dockerfile's client-build stage. Only the dev stub (index.html) is tracked.
+*
+!.gitignore
+!index.html

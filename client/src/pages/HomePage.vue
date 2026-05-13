@@ -58,9 +58,23 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
+import { useHead } from '@unhead/vue';
 import AddSongForm from '../components/AddSongForm.vue';
 import { useAuthModal } from '../composables/useAuthModal';
 import { useToast } from '../composables/useToast';
+
+useHead({
+  title: 'Go Shazam — Identify the music around you',
+  meta: [
+    { name: 'description', content: 'Tap to identify any song playing around you. Browse our growing catalog of recognized tracks and explore by artist, title, or recency.' },
+    { property: 'og:title', content: 'Go Shazam — Identify the music around you' },
+    { property: 'og:description', content: 'Tap to identify any song playing around you.' },
+    { property: 'og:type', content: 'website' },
+  ],
+  link: [
+    { rel: 'canonical', href: () => (typeof window !== 'undefined' ? `${window.location.origin}/` : '/') },
+  ],
+});
 
 const authModal = useAuthModal();
 const toast = useToast();
@@ -200,7 +214,10 @@ const startRecording = async () => {
       if (!isRecording.value) return;
       const inputData = e.inputBuffer.getChannelData(0);
       let sum = 0;
-      for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
+      for (let i = 0; i < inputData.length; i++) {
+        const v = inputData[i] ?? 0;
+        sum += v * v;
+      }
       const rms = Math.sqrt(sum / inputData.length);
       audioLevel.value = audioLevel.value * 0.7 + Math.min(rms * 3, 1) * 0.3;
       if (socket?.readyState === WebSocket.OPEN) socket.send(inputData);

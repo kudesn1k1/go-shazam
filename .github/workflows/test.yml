@@ -1,0 +1,75 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go-unit:
+    name: Go unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+          cache-dependency-path: server/go.sum
+      - name: go test
+        run: |
+          cd server
+          go test ./...
+
+  go-vet:
+    name: go vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+          cache-dependency-path: server/go.sum
+      - name: vet
+        run: cd server && go vet ./...
+      # NOTE: golangci-lint is intentionally not run here. As of 2026-05-13
+      # the released v1.x and v2.x binaries are built with Go 1.24 and refuse
+      # to analyze our Go 1.25 module. `go vet` ships with the Go toolchain
+      # so it's always compatible. Re-introduce golangci-lint once a Go-1.25
+      # build is released upstream.
+
+  vue-typecheck:
+    name: Vue typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+      - name: install + typecheck
+        run: |
+          cd client
+          npm ci
+          npm run typecheck
+
+  vue-unit:
+    name: Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+      - name: install + test
+        run: |
+          cd client
+          npm ci
+          npm run test:unit

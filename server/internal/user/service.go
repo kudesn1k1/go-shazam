@@ -3,10 +3,12 @@ package user
 import (
 	"context"
 	"errors"
+	"regexp"
 	"time"
 
 	"go-shazam/internal/auth"
 	"go-shazam/internal/core/db"
+	"go-shazam/internal/files"
 	"go-shazam/internal/role"
 
 	"github.com/google/uuid"
@@ -15,7 +17,11 @@ import (
 var (
 	ErrUserAlreadyExists  = errors.New("user with this email already exists")
 	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrAvatarHashInvalid  = errors.New("invalid file hash")
+	ErrAvatarFileNotFound = errors.New("file not found")
 )
+
+var avatarHashRegex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 type UserService struct {
 	userRepository     UserRepositoryInterface
@@ -23,6 +29,7 @@ type UserService struct {
 	cryptoService      *CryptoService
 	jwtService         *auth.JWTService
 	transactionManager *db.TransactionManager
+	filesSvc           *files.FilesService
 }
 
 func NewUserService(
@@ -31,6 +38,7 @@ func NewUserService(
 	cryptoService *CryptoService,
 	jwtService *auth.JWTService,
 	transactionManager *db.TransactionManager,
+	filesSvc *files.FilesService,
 ) *UserService {
 	return &UserService{
 		userRepository:     userRepository,
@@ -38,6 +46,7 @@ func NewUserService(
 		cryptoService:      cryptoService,
 		jwtService:         jwtService,
 		transactionManager: transactionManager,
+		filesSvc:           filesSvc,
 	}
 }
 
@@ -180,6 +189,7 @@ func (s *UserService) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*Us
 		Email:     email,
 		Roles:     role.RolesToStrings(roles),
 		CreatedAt: user.CreatedAt.Format(time.RFC3339),
+		AvatarURL: avatarURLPtr(user.AvatarFileHash),
 	}, nil
 }
 
@@ -217,6 +227,7 @@ func (s *UserService) GetAllUsers(ctx context.Context, page, limit int) ([]UserR
 			Email:     email,
 			Roles:     role.RolesToStrings(rolesMap[u.ID]),
 			CreatedAt: u.CreatedAt.Format(time.RFC3339),
+			AvatarURL: avatarURLPtr(u.AvatarFileHash),
 		}
 	}
 
@@ -244,6 +255,7 @@ func (s *UserService) GetUserByID(ctx context.Context, userID uuid.UUID) (*UserR
 		Email:     email,
 		Roles:     role.RolesToStrings(roles),
 		CreatedAt: user.CreatedAt.Format(time.RFC3339),
+		AvatarURL: avatarURLPtr(user.AvatarFileHash),
 	}, nil
 }
 
@@ -253,4 +265,72 @@ func (s *UserService) UpdateUserRoles(ctx context.Context, userID uuid.UUID, rol
 		roles[i] = role.Role(name)
 	}
 	return s.roleService.UpdateUserRoles(ctx, userID, roles)
+}
+
+// SetAvatar confirms a file hash as the user's avatar. Runs atomically:
+// dereference previous avatar, update users row, confirm new hash.
+func (s *UserService) SetAvatar(ctx context.Context, userID uuid.UUID, hash string) (string, error) {
+	if !avatarHashRegex.MatchString(hash) {
+		return "", ErrAvatarHashInvalid
+	}
+
+	f, err := s.filesSvc.GetByHash(ctx, hash)
+	if err != nil {
+		return "", err
+	}
+	if f == nil {
+		return "", ErrAvatarFileNotFound
+	}
+
+	_, err = db.Transactional(ctx, s.transactionManager, func(txCtx context.Context) (struct{}, error) {
+		prev, err := s.userRepository.GetAvatarHash(txCtx, userID)
+		if err != nil {
+			return struct{}{}, err
+		}
+		if prev != nil && *prev == hash {
+			return struct{}{}, nil
+		}
+		if err := s.userRepository.SetAvatarHash(txCtx, userID, &hash); err != nil {
+			return struct{}{}, err
+		}
+		if err := s.filesSvc.Confirm(txCtx, hash); err != nil {
+			return struct{}{}, err
+		}
+		if prev != nil {
+			if err := s.filesSvc.Dereference(txCtx, *prev); err != nil {
+				return struct{}{}, err
+			}
+		}
+		return struct{}{}, nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return "/api/files/" + hash, nil
+}
+
+func (s *UserService) ClearAvatar(ctx context.Context, userID uuid.UUID) error {
+	_, err := db.Transactional(ctx, s.transactionManager, func(txCtx context.Context) (struct{}, error) {
+		prev, err := s.userRepository.GetAvatarHash(txCtx, userID)
+		if err != nil {
+			return struct{}{}, err
+		}
+		if prev == nil {
+			return struct{}{}, nil
+		}
+		if err := s.userRepository.SetAvatarHash(txCtx, userID, nil); err != nil {
+			return struct{}{}, err
+		}
+		return struct{}{}, s.filesSvc.Dereference(txCtx, *prev)
+	})
+	return err
+}
+
+func avatarURLPtr(hash *string) *string {
+	if hash == nil {
+		return nil
+	}
+	u := "/api/files/" + *hash
+	return &u
 }

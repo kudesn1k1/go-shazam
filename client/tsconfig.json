@@ -6,8 +6,12 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["vite/client", "dom-screen-wake-lock"],
-    "target": "ES2020"
+    "types": ["vite/client"],
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noPropertyAccessFromIndexSignature": false,
+    "exactOptionalPropertyTypes": false
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
 }

@@ -12,6 +12,7 @@ import (
 	"go-shazam/internal/utils/converter"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -59,29 +60,28 @@ func (s *SongService) GetSongMetadata(ctx context.Context, sourceID string) (*So
 	return s.songMetadataSource.GetSongMetadata(ctx, sourceID)
 }
 
-func (s *SongService) GetUserSongs(ctx context.Context, userID uuid.UUID, page, limit int) ([]SongResponse, int, error) {
-	offset := (page - 1) * limit
-	songs, err := s.songRepository.FindByUploadedBy(ctx, userID, limit, offset)
+func (s *SongService) ListSongs(ctx context.Context, f SongFilter) ([]SongResponse, int, error) {
+	songs, err := s.songRepository.FindFiltered(ctx, f)
 	if err != nil {
 		return nil, 0, err
 	}
-	//TODO: Consider using single query to get total and songs
-	total, err := s.songRepository.CountByUploadedBy(ctx, userID)
+	total, err := s.songRepository.CountFiltered(ctx, f)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	responses := make([]SongResponse, len(songs))
-	for i, s := range songs {
+	for i, sg := range songs {
 		resp := SongResponse{
-			ID:       s.ID.String(),
-			Title:    s.Title,
-			Artist:   s.Artist,
-			Duration: s.Duration,
-			SourceID: s.SourceID,
+			ID:        sg.ID.String(),
+			Title:     sg.Title,
+			Artist:    sg.Artist,
+			Duration:  sg.Duration,
+			SourceID:  sg.SourceID,
+			CreatedAt: sg.CreatedAt.UTC().Format(time.RFC3339),
 		}
-		if s.UploadedBy != nil {
-			str := s.UploadedBy.String()
+		if sg.UploadedBy != nil {
+			str := sg.UploadedBy.String()
 			resp.UploadedBy = &str
 		}
 		responses[i] = resp
@@ -90,34 +90,30 @@ func (s *SongService) GetUserSongs(ctx context.Context, userID uuid.UUID, page, 
 	return responses, total, nil
 }
 
-func (s *SongService) GetAllSongs(ctx context.Context, page, limit int) ([]SongResponse, int, error) {
-	offset := (page - 1) * limit
-	songs, err := s.songRepository.FindAll(ctx, limit, offset)
+// GetSong returns a single song by ID, or (nil, nil) when not found —
+// matching the repository's "not found = nil entity, nil error" convention.
+func (s *SongService) GetSong(ctx context.Context, id uuid.UUID) (*SongResponse, error) {
+	sg, err := s.songRepository.FindByID(ctx, id)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	total, err := s.songRepository.Count(ctx)
-	if err != nil {
-		return nil, 0, err
+	if sg == nil {
+		return nil, nil
 	}
 
-	responses := make([]SongResponse, len(songs))
-	for i, s := range songs {
-		resp := SongResponse{
-			ID:       s.ID.String(),
-			Title:    s.Title,
-			Artist:   s.Artist,
-			Duration: s.Duration,
-			SourceID: s.SourceID,
-		}
-		if s.UploadedBy != nil {
-			str := s.UploadedBy.String()
-			resp.UploadedBy = &str
-		}
-		responses[i] = resp
+	resp := SongResponse{
+		ID:        sg.ID.String(),
+		Title:     sg.Title,
+		Artist:    sg.Artist,
+		Duration:  sg.Duration,
+		SourceID:  sg.SourceID,
+		CreatedAt: sg.CreatedAt.UTC().Format(time.RFC3339),
 	}
-
-	return responses, total, nil
+	if sg.UploadedBy != nil {
+		str := sg.UploadedBy.String()
+		resp.UploadedBy = &str
+	}
+	return &resp, nil
 }
 
 func (s *SongService) DeleteSong(ctx context.Context, id uuid.UUID) error {
@@ -220,6 +216,7 @@ func (s *SongService) AddSong(ctx context.Context, sourceID string, uploadedBy *
 		Duration:   songMeta.DurationMs,
 		SourceID:   downloadedSong.SourceID,
 		UploadedBy: uploadedBy,
+		CreatedAt:  time.Now().UTC(),
 	}
 
 	// Calculate fingerprints (CPU bound)

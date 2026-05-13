@@ -68,17 +68,22 @@ func (m *MockSongRepository) FindByTitleAndArtist(ctx context.Context, title str
 	return args.Get(0).(*SongEntity), args.Error(1)
 }
 
-func (m *MockSongRepository) FindByUploadedBy(ctx context.Context, userID uuid.UUID, limit, offset int) ([]SongEntity, error) {
-	args := m.Called(ctx, userID, limit, offset)
+func (m *MockSongRepository) FindFiltered(ctx context.Context, f SongFilter) ([]SongEntity, error) {
+	args := m.Called(ctx, f)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]SongEntity), args.Error(1)
 }
 
-func (m *MockSongRepository) CountByUploadedBy(ctx context.Context, userID uuid.UUID) (int, error) {
-	args := m.Called(ctx, userID)
+func (m *MockSongRepository) CountFiltered(ctx context.Context, f SongFilter) (int, error) {
+	args := m.Called(ctx, f)
 	return args.Int(0), args.Error(1)
+}
+
+func (m *MockSongRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
 }
 
 type MockQueueService struct {
@@ -182,21 +187,22 @@ func TestSongService_EnqueueSong_InvalidLink(t *testing.T) {
 	mockMetadataSource.AssertExpectations(t)
 }
 
-func TestSongService_GetUserSongs_Success(t *testing.T) {
+func TestSongService_ListSongs_Success(t *testing.T) {
 	mockRepo := new(MockSongRepository)
 	userID := uuid.New()
 	songID := uuid.New()
 
+	filter := SongFilter{UploadedBy: &userID, Sort: SortCreatedAt, Order: SortDesc, Limit: 20}
 	expectedSongs := []SongEntity{
 		{ID: songID, Title: "Song 1", Artist: "Artist 1", Duration: 180000, SourceID: "src1", UploadedBy: &userID},
 	}
 
-	mockRepo.On("FindByUploadedBy", mock.Anything, userID, 20, 0).Return(expectedSongs, nil)
-	mockRepo.On("CountByUploadedBy", mock.Anything, userID).Return(1, nil)
+	mockRepo.On("FindFiltered", mock.Anything, filter).Return(expectedSongs, nil)
+	mockRepo.On("CountFiltered", mock.Anything, filter).Return(1, nil)
 
 	service := NewSongService(nil, nil, mockRepo, nil, nil, nil)
 
-	songs, total, err := service.GetUserSongs(context.Background(), userID, 1, 20)
+	songs, total, err := service.ListSongs(context.Background(), filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, total)
@@ -205,16 +211,16 @@ func TestSongService_GetUserSongs_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestSongService_GetUserSongs_Empty(t *testing.T) {
+func TestSongService_ListSongs_Empty(t *testing.T) {
 	mockRepo := new(MockSongRepository)
-	userID := uuid.New()
+	filter := SongFilter{Sort: SortCreatedAt, Order: SortDesc, Limit: 20}
 
-	mockRepo.On("FindByUploadedBy", mock.Anything, userID, 20, 0).Return([]SongEntity{}, nil)
-	mockRepo.On("CountByUploadedBy", mock.Anything, userID).Return(0, nil)
+	mockRepo.On("FindFiltered", mock.Anything, filter).Return([]SongEntity{}, nil)
+	mockRepo.On("CountFiltered", mock.Anything, filter).Return(0, nil)
 
 	service := NewSongService(nil, nil, mockRepo, nil, nil, nil)
 
-	songs, total, err := service.GetUserSongs(context.Background(), userID, 1, 20)
+	songs, total, err := service.ListSongs(context.Background(), filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 0, total)

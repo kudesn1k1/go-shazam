@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router';
 import { useAuth } from './composables/useAuth';
 
 const router = createRouter({
@@ -7,6 +7,19 @@ const router = createRouter({
     {
       path: '/',
       component: () => import('./pages/HomePage.vue'),
+    },
+    {
+      path: '/catalog',
+      component: () => import('./pages/CatalogPage.vue'),
+    },
+    {
+      path: '/catalog/:id',
+      component: () => import('./pages/SongDetailPage.vue'),
+    },
+    {
+      path: '/profile',
+      component: () => import('./pages/ProfilePage.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/my-songs',
@@ -31,7 +44,7 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to: RouteLocationNormalized) => {
   const { isAuthenticated, isAdmin, initialize } = useAuth();
 
   await initialize();
@@ -43,6 +56,8 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAdmin && !isAdmin.value) {
     return '/';
   }
+
+  return true;
 });
 
 export default router;

@@ -40,7 +40,7 @@ describe('AuthModal', () => {
 
     const submitEvents = wrapper.emitted('submit');
     expect(submitEvents).toBeTruthy();
-    expect(submitEvents![0][0]).toEqual({
+    expect(submitEvents![0]![0]).toEqual({
       mode: 'login',
       email: 'user@example.com',
       password: 'any-password',

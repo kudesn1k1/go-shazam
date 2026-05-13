@@ -49,7 +49,6 @@ const error = ref<string | null>(null);
 const isInitialized = ref(false);
 
 let initPromise: Promise<void> | null = null;
-let tokenExpiry: number | null = null;
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 // =============================================================================
@@ -114,13 +113,11 @@ function clearRefreshTimer(): void {
 
 function setAuthTokens(tokens: TokenResponse): void {
   accessToken.value = tokens.access_token;
-  tokenExpiry = Date.now() + tokens.expires_in * 1000;
   scheduleTokenRefresh(tokens.expires_in);
 }
 
 function clearAuthState(): void {
   accessToken.value = null;
-  tokenExpiry = null;
   user.value = null;
   error.value = null;
   clearRefreshTimer();

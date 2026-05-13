@@ -11,7 +11,7 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000';
 
-function buildQuery(params: Record<string, unknown>): string {
+function buildQuery(params: object): string {
   const parts: string[] = [];
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null || value === '') continue;

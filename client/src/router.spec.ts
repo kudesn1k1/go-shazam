@@ -38,6 +38,7 @@ async function newRouter(auth: boolean, admin: boolean): Promise<Router> {
     if (to.meta.requiresAdmin && !isAdmin.value) {
       return '/';
     }
+    return true;
   });
 
   return r;

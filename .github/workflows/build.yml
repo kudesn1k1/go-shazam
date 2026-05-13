@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: 'stable'
           cache: true
           cache-dependency-path: server/go.sum
       - run: cd server && go test ./...
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: 'stable'
           cache: true
           cache-dependency-path: server/go.sum
       - run: cd server && go test -tags=integration ./... -count=1

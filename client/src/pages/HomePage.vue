@@ -214,7 +214,10 @@ const startRecording = async () => {
       if (!isRecording.value) return;
       const inputData = e.inputBuffer.getChannelData(0);
       let sum = 0;
-      for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
+      for (let i = 0; i < inputData.length; i++) {
+        const v = inputData[i] ?? 0;
+        sum += v * v;
+      }
       const rms = Math.sqrt(sum / inputData.length);
       audioLevel.value = audioLevel.value * 0.7 + Math.min(rms * 3, 1) * 0.3;
       if (socket?.readyState === WebSocket.OPEN) socket.send(inputData);

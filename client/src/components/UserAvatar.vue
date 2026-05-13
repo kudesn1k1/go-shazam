@@ -46,7 +46,7 @@ const initials = computed(() => {
   const email = props.email ?? '';
   if (!email) return '?';
   const local = email.split('@')[0];
-  if (local.length === 0) return '?';
+  if (!local || local.length === 0) return '?';
   return local.slice(0, 2).toUpperCase();
 });
 

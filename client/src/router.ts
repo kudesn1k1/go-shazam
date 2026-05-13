@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router';
 import { useAuth } from './composables/useAuth';
 
 const router = createRouter({
@@ -44,7 +44,7 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to: RouteLocationNormalized) => {
   const { isAuthenticated, isAdmin, initialize } = useAuth();
 
   await initialize();
@@ -56,6 +56,8 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAdmin && !isAdmin.value) {
     return '/';
   }
+
+  return true;
 });
 
 export default router;

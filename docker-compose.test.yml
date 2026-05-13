@@ -1,0 +1,32 @@
+# Test-stack override. Runs alongside docker-compose.yml or replaces it for E2E
+# runs. Differences from the prod compose:
+#   * APP_ENV=test on server + worker — mounts /api/test/* helper endpoints.
+#   * Separate named volumes for DB and MinIO so test data never touches
+#     production data on the same machine.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+#
+# The two compose files merge: services without an override inherit from the
+# first file unchanged.
+
+services:
+  server:
+    environment:
+      APP_ENV: test
+
+  worker:
+    environment:
+      APP_ENV: test
+
+  db:
+    volumes:
+      - db_data_test:/var/lib/postgresql/data
+
+  minio:
+    volumes:
+      - minio_data_test:/data
+
+volumes:
+  db_data_test:
+  minio_data_test:

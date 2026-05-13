@@ -45,6 +45,7 @@ func NewWebApp() *fx.App {
 		web.HttpModule,
 
 		fx.Invoke(core.RegisterCoreMiddleware),
+		fx.Invoke(registerTestEndpoints),
 		fx.Invoke(func(r *http.Server) {}),
 	)
 }

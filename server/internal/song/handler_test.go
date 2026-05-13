@@ -191,3 +191,101 @@ func TestSongHandler_GetPublicSong_RepositoryError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+// --- filter boundary cases (Task 5 of comprehensive testing plan) ---
+
+func TestSongHandler_GetPublicSongs_InvalidSortReturns422(t *testing.T) {
+	handler := NewSongHandler(newServiceWithRepo(new(MockSongRepository)))
+	router := setupTestRouter(handler)
+
+	req, _ := http.NewRequest(http.MethodGet, "/api/public/songs?sort=evil", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "validation failed", body["error"])
+	fields, ok := body["fields"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, fields, "sort")
+}
+
+func TestSongHandler_GetPublicSongs_InvalidOrderReturns422(t *testing.T) {
+	handler := NewSongHandler(newServiceWithRepo(new(MockSongRepository)))
+	router := setupTestRouter(handler)
+
+	req, _ := http.NewRequest(http.MethodGet, "/api/public/songs?order=sideways", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+}
+
+func TestSongHandler_GetPublicSongs_OverLongQueryReturns422(t *testing.T) {
+	handler := NewSongHandler(newServiceWithRepo(new(MockSongRepository)))
+	router := setupTestRouter(handler)
+
+	long := strings.Repeat("a", 201)
+	req, _ := http.NewRequest(http.MethodGet, "/api/public/songs?q="+long, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+}
+
+func TestSongHandler_GetPublicSongs_InvalidCreatedAfterReturns422(t *testing.T) {
+	handler := NewSongHandler(newServiceWithRepo(new(MockSongRepository)))
+	router := setupTestRouter(handler)
+
+	req, _ := http.NewRequest(http.MethodGet, "/api/public/songs?created_after=not-a-date", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+}
+
+func TestSongHandler_GetPublicSongs_CreatedBeforeBeforeCreatedAfterReturns422(t *testing.T) {
+	handler := NewSongHandler(newServiceWithRepo(new(MockSongRepository)))
+	router := setupTestRouter(handler)
+
+	url := "/api/public/songs?created_after=2026-05-13T00:00:00Z&created_before=2025-01-01T00:00:00Z"
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	fields, ok := body["fields"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, fields, "created_before")
+}
+
+func TestSongHandler_GetAllSongs_InvalidUploadedByReturns422(t *testing.T) {
+	// Admin endpoint; expects an admin bearer token. setupTestRouterWithToken issues a user token,
+	// so this test should produce 403 — admin gating runs before query parsing.
+	// We need an admin token. Build one directly.
+	handler := NewSongHandler(newServiceWithRepo(new(MockSongRepository)))
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	jwtService := newTestJWTService()
+	RegisterRoutes(router, handler, jwtService)
+
+	userID := uuid.New()
+	pair, err := jwtService.GenerateTokenPair(userID, []string{"admin"})
+	require.NoError(t, err)
+	adminToken := "Bearer " + pair.AccessToken
+
+	req, _ := http.NewRequest(http.MethodGet, "/api/songs?uploaded_by=not-a-uuid", nil)
+	req.Header.Set("Authorization", adminToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	fields, ok := body["fields"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, fields, "uploaded_by")
+}

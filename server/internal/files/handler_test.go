@@ -218,3 +218,80 @@ func TestFilesHandler_Get_InvalidHashFormat(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+// --- boundary cases (Task 5 of comprehensive testing plan) ---
+
+func TestFilesHandler_Upload_UnsupportedMIMEReturns422(t *testing.T) {
+	repo := new(mockRepo)
+	s3c := new(mockS3)
+	cfg := &Config{MaxUploadBytes: 1 << 20, Bucket: "b"}
+	svc := NewFilesService(repo, s3c, cfg)
+	router, j := setupRouter(svc, cfg)
+
+	body := &bytes.Buffer{}
+	mw := multipart.NewWriter(body)
+	part, err := mw.CreateFormFile("file", "x.txt")
+	require.NoError(t, err)
+	_, _ = part.Write([]byte("just plain text — this should not be accepted as an image"))
+	require.NoError(t, mw.Close())
+
+	req, _ := http.NewRequest(http.MethodPost, "/api/files", body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", newBearerToken(t, j))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	assert.Contains(t, w.Body.String(), "unsupported file type")
+	// Make sure we never even reached the repo / S3 layer
+	repo.AssertNotCalled(t, "FindByHash", mock.Anything, mock.Anything)
+	s3c.AssertNotCalled(t, "PutObject", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestFilesHandler_Upload_MissingFileFieldReturns422(t *testing.T) {
+	cfg := &Config{MaxUploadBytes: 1 << 20, Bucket: "b"}
+	svc := NewFilesService(new(mockRepo), new(mockS3), cfg)
+	router, j := setupRouter(svc, cfg)
+
+	// Multipart body without the required `file` field
+	body := &bytes.Buffer{}
+	mw := multipart.NewWriter(body)
+	require.NoError(t, mw.WriteField("other", "value"))
+	require.NoError(t, mw.Close())
+
+	req, _ := http.NewRequest(http.MethodPost, "/api/files", body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", newBearerToken(t, j))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	assert.Contains(t, w.Body.String(), "missing file field")
+}
+
+func TestFilesHandler_Upload_EmptyFileSniffsAsNotAnImageReturns422(t *testing.T) {
+	cfg := &Config{MaxUploadBytes: 1 << 20, Bucket: "b"}
+	svc := NewFilesService(new(mockRepo), new(mockS3), cfg)
+	router, j := setupRouter(svc, cfg)
+
+	body := &bytes.Buffer{}
+	mw := multipart.NewWriter(body)
+	part, err := mw.CreateFormFile("file", "empty.jpg")
+	require.NoError(t, err)
+	// part stays empty
+	_ = part
+	require.NoError(t, mw.Close())
+
+	req, _ := http.NewRequest(http.MethodPost, "/api/files", body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", newBearerToken(t, j))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// http.DetectContentType on empty bytes returns "application/octet-stream",
+	// which is not in allowedContentTypes, so service rejects with ErrUnsupportedMIME → 422.
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+}

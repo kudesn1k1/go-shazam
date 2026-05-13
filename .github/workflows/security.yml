@@ -2,6 +2,7 @@ name: security
 
 on:
   push:
+    branches: [main]
   pull_request:
   schedule:
     - cron: '18 9 * * 1'   # Mon 09:18 UTC — same cadence as codeql.yml

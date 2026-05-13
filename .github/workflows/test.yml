@@ -2,6 +2,7 @@ name: test
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -23,8 +24,8 @@ jobs:
           cd server
           go test ./...
 
-  go-lint:
-    name: golangci-lint
+  go-vet:
+    name: go vet
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,12 +34,13 @@ jobs:
           go-version: '1.25'
           cache: true
           cache-dependency-path: server/go.sum
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          # Pinned to v1.x — our .golangci.yml uses v1 config format.
-          # v2.x requires a config-format migration, deferred until needed.
-          version: v1.64.8
-          working-directory: server
+      - name: vet
+        run: cd server && go vet ./...
+      # NOTE: golangci-lint is intentionally not run here. As of 2026-05-13
+      # the released v1.x and v2.x binaries are built with Go 1.24 and refuse
+      # to analyze our Go 1.25 module. `go vet` ships with the Go toolchain
+      # so it's always compatible. Re-introduce golangci-lint once a Go-1.25
+      # build is released upstream.
 
   vue-typecheck:
     name: Vue typecheck

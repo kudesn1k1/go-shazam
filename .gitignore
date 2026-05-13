@@ -35,8 +35,6 @@ go.work.sum
 .vscode/
 .cursor/
 
-package-lock.json
-
 # Node — catches client/, e2e/, and any future workspaces
 node_modules/
 

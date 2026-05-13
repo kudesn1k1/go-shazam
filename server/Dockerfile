@@ -41,7 +41,8 @@ RUN apt-get update && \
 	ffmpeg \
 	bash \
 	coreutils \
-	ca-certificates && \
+	ca-certificates \
+	wget && \
 	# Install yt-dlp via pip (clean, no cache)
 	pip3 install --no-cache-dir --break-system-packages yt-dlp && \
 	# Clean up

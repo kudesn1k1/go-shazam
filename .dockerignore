@@ -1,0 +1,48 @@
+# Git
+.git
+.github
+.gitignore
+.gitattributes
+
+# Local docs and agent artifacts
+docs/
+CLAUDE.md
+README.md
+TESTING.md
+Makefile
+
+# Test artifacts
+**/coverage/
+**/coverage.out
+**/coverage.html
+**/playwright-report/
+**/test-results/
+
+# Test code — not part of runtime image.
+# Note: server/internal/app/testendpoints.go is NOT excluded because
+# server/internal/app/app.go references registerTestEndpoints. The function
+# is runtime-gated by APP_ENV=test so it's safe to ship — the same image
+# then runs in both prod and test compose.
+**/*_test.go
+**/integration_test.go
+server/test/
+
+# Dependencies built inside containers
+**/node_modules/
+
+# Editor
+.idea/
+.vscode/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# E2E suite — not shipped in images
+e2e/

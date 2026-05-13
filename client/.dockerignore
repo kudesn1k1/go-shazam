@@ -1,0 +1,25 @@
+# Build outputs
+node_modules/
+dist/
+.vite/
+
+# Test artifacts
+coverage/
+
+# Tests not needed inside the nginx image
+**/*.spec.ts
+vitest.config.ts
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Git noise (compose passes ./client as context, but be defensive)
+.git/

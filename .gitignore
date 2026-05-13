@@ -49,3 +49,4 @@ coverage.html
 # Local agent artifacts — not versioned
 CLAUDE.md
 docs/
+.claude/
